@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+runs/
+*.pt
+# 写真と生成データは大きいので git に入れない（models/*.onnx は入れる）
+dataset/raw/*
+!dataset/raw/.gitkeep
+dataset/yolo/
+dataset/preview/
+.DS_Store

@@ -1,0 +1,8 @@
+{
+  "imgsz": 640,
+  "classes": [
+    "包丁",
+    "野菜"
+  ],
+  "base": "yolov8n.pt"
+}

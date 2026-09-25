@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>カット検出プロトタイプ</title>
+<style>
+  :root {
+    --bg: #15171c; --panel: #1f232b; --line: #323845; --text: #e8eaef; --sub: #9aa3b2;
+    --veg: #3cdc5a; --knife: #ff6a3c; --accent: #ffd23c; --blue: #2f6fed;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, "Hiragino Sans", sans-serif; }
+  header { padding: 10px 16px; border-bottom: 1px solid var(--line); display: flex; align-items: baseline; gap: 12px; }
+  header h1 { font-size: 18px; margin: 0; }
+  header span { color: var(--sub); font-size: 12px; }
+  main { display: grid; grid-template-columns: 1fr 380px; gap: 12px; padding: 12px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+
+  #stage { position: relative; background: #000; border-radius: 8px; overflow: hidden; align-self: start; }
+  #stage.picking { cursor: crosshair; outline: 3px solid var(--accent); }
+  #video { display: block; width: 100%; height: auto; }
+  #video.mirror { transform: scaleX(-1); }
+  #overlay { position: absolute; inset: 0; width: 100%; height: 100%; }
+  #flash { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: min(18vw, 160px); font-weight: 900; color: var(--accent); text-shadow: 0 0 24px #000, 0 0 4px #000;
+    opacity: 0; pointer-events: none; transition: opacity .5s; }
+  #flash.show { opacity: 1; transition: none; }
+  #hint { position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 12px; background: rgba(0,0,0,.6); font-size: 13px; }
+  #hint:empty { display: none; }
+
+  aside { display: flex; flex-direction: column; gap: 10px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; }
+  .card h2 { font-size: 13px; margin: 0 0 8px; color: var(--sub); font-weight: 600; }
+  .row { display: flex; align-items: center; gap: 8px; margin: 6px 0; flex-wrap: wrap; }
+  .row label { min-width: 88px; color: var(--sub); font-size: 12px; }
+  select, input[type=text], button { background: #2a2f3a; color: var(--text); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; font: inherit; }
+  input[type=text] { width: 100%; font-size: 12px; }
+  select { flex: 1; min-width: 0; }
+  button { cursor: pointer; user-select: none; -webkit-user-select: none; touch-action: none; }
+  button:hover { background: #343a47; }
+  button:disabled { opacity: .4; cursor: default; }
+  button.primary { background: var(--blue); border-color: var(--blue); }
+  button.big { width: 100%; padding: 12px; font-size: 15px; font-weight: 700; margin: 6px 0; }
+  button.teach:active, button.teach.on { background: var(--accent); color: #000; border-color: var(--accent); }
+  input[type=range] { flex: 1; }
+  .val { width: 44px; text-align: right; font-variant-numeric: tabular-nums; font-size: 12px; }
+  .swatch { width: 22px; height: 22px; border-radius: 4px; border: 1px solid var(--line); background: repeating-linear-gradient(45deg,#333 0 4px,#444 4px 8px); }
+  .veg { color: var(--veg); } .knife { color: var(--knife); }
+  .muted { color: var(--sub); font-size: 12px; }
+  .ok { color: var(--veg); font-size: 12px; }
+  .hidden { display: none !important; }
+
+  /* 手順ウィザード */
+  .steps { list-style: none; margin: 0; padding: 0; }
+  .steps li { border-top: 1px solid var(--line); padding: 8px 0; }
+  .steps li:first-child { border-top: 0; }
+  .steps li > b { display: block; color: var(--sub); font-size: 13px; cursor: default; }
+  .steps li.active > b { color: var(--text); font-size: 15px; }
+  .steps li.done > b { color: var(--veg); cursor: pointer; }
+  .steps li.done > b::after { content: "  ✓"; }
+  .steps li .body { display: none; margin-top: 6px; }
+  .steps li.active .body { display: block; }
+  .steps p { margin: 4px 0 8px; }
+  .bar { height: 8px; background: #2a2f3a; border-radius: 4px; overflow: hidden; margin: -2px 0 10px; }
+  .bar > div { height: 100%; width: 0; background: var(--accent); transition: width .15s; }
+  #count { font-size: 56px; font-weight: 800; color: var(--accent); line-height: 1; }
+  .stats { display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; font-size: 12px; font-variant-numeric: tabular-nums; margin: 8px 0; }
+  .stats dt { color: var(--sub); } .stats dd { margin: 0; }
+  #log { max-height: 140px; overflow: auto; font-size: 12px; margin: 0; padding: 0; list-style: none; }
+  #log li { padding: 2px 0; border-bottom: 1px solid var(--line); }
+  details.card summary { cursor: pointer; color: var(--sub); font-size: 13px; font-weight: 600; }
+  details.card[open] summary { margin-bottom: 8px; }
+  .sub { border-top: 1px dashed var(--line); margin-top: 10px; padding-top: 8px; }
+  .sub h3 { font-size: 12px; margin: 0 0 4px; color: var(--sub); }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔪🥕 カット検出プロトタイプ</h1>
+  <span>おもちゃの野菜と包丁で「切った」をカメラが検出できるかを確かめる</span>
+</header>
+
+<main>
+  <div id="stage">
+    <video id="video" playsinline muted></video>
+    <canvas id="overlay"></canvas>
+    <div id="flash">CUT!</div>
+    <div id="hint">右の手順にそって進めてください</div>
+  </div>
+
+  <aside>
+    <!-- ===== 手順 ===== -->
+    <div class="card">
+      <ol class="steps" id="steps">
+        <li data-step="1" class="active">
+          <b>1. カメラを開始</b>
+          <div class="body">
+            <p>横から机が映るようにカメラを置いてください。</p>
+            <div class="row"><select id="camSel"><option value="">（既定のカメラ）</option></select></div>
+            <button id="startBtn" class="primary big">カメラを開始</button>
+          </div>
+        </li>
+        <li data-step="2">
+          <b>2. 背景を撮る</b>
+          <div class="body">
+            <p>机の上に<b>何も置かない</b>状態で撮影します。</p>
+            <button id="bgBtn" class="primary big">📷 背景を撮影</button>
+          </div>
+        </li>
+        <li data-step="3">
+          <b>3. 野菜を置く</b>
+          <div class="body">
+            <p>野菜（にんじん）を机に置いて撮影します。野菜の位置を覚えます。</p>
+            <button id="bgVegBtn" class="primary big">📷 野菜を置いて撮影</button>
+          </div>
+        </li>
+        <li data-step="4">
+          <b>4. 包丁を覚えさせる</b>
+          <div class="body">
+            <p>包丁を持って、ボタンを<b>押し続けたまま</b>カメラに見せます。角度を変えながら3秒くらい。</p>
+            <button class="teach big" data-label="包丁">🔪 押しながら包丁を見せる</button>
+            <div class="bar"><div id="barKnife"></div></div>
+            <p>次に包丁を置いて、<b>手だけ</b>を見せます（手を包丁と間違えないようにするため）。</p>
+            <button class="teach big" data-label="その他">✋ 押しながら手を見せる</button>
+            <div class="bar"><div id="barOther"></div></div>
+            <button id="toStep5" class="primary big">切ってみる →</button>
+          </div>
+        </li>
+        <li data-step="5">
+          <b>5. 切ってみる</b>
+          <div class="body">
+            <p>包丁を上から野菜に振り下ろしてください。</p>
+            <div class="row" style="justify-content:space-between">
+              <div><div id="count">0</div><span class="muted">回 切った</span></div>
+              <button id="resetBtn">カウントをリセット</button>
+            </div>
+            <dl class="stats">
+              <dt>FPS</dt><dd id="stFps">-</dd>
+              <dt class="veg">野菜 検出率</dt><dd id="stVeg">-</dd>
+              <dt class="knife">包丁 検出率</dt><dd id="stKnife">-</dd>
+              <dt>包丁の深さ</dt><dd id="stRel">-</dd>
+              <dt>状態</dt><dd id="stState">-</dd>
+            </dl>
+            <button id="restartBtn" class="big">↩ 背景の撮影からやり直す</button>
+          </div>
+        </li>
+      </ol>
+    </div>
+
+    <div class="card">
+      <h2>ログ</h2>
+      <ul id="log"></ul>
+    </div>
+
+    <!-- ===== 詳細設定（普段は閉じておく） ===== -->
+    <details class="card" id="advanced">
+      <summary>詳細設定</summary>
+
+      <div class="row"><label><input type="checkbox" id="mirror"> 左右反転表示</label></div>
+      <div class="row"><label><input type="checkbox" id="showAll" checked> 全候補と判定結果を表示</label></div>
+
+      <div class="sub">
+        <h3>検出方法</h3>
+        <div class="row">
+          <label class="veg">■ 野菜</label>
+          <select id="vegSrc">
+            <option value="learn" selected>見せて学習</option>
+            <option value="yolo">自前モデル(YOLO)</option>
+            <option value="color">色で追跡</option>
+            <option value="ai">汎用AI(coco-ssd)</option>
+          </select>
+        </div>
+        <div class="row">
+          <label class="knife">■ 包丁</label>
+          <select id="knifeSrc">
+            <option value="learn" selected>見せて学習</option>
+            <option value="yolo">自前モデル(YOLO)</option>
+            <option value="color">色で追跡</option>
+            <option value="ai">汎用AI(coco-ssd)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="sub" id="learnBox">
+        <h3>見せて学習</h3>
+        <div class="row">
+          <button id="bgVegClr">野菜の位置固定を解除</button>
+          <span id="bgStat" class="muted">背景: 未撮影</span>
+          <span id="bgVegStat" class="muted">野菜: 未固定</span>
+        </div>
+        <div class="row">
+          <button class="teach" data-label="野菜">🥕 野菜を覚える</button>
+          <button class="teach" data-label="包丁">🔪 包丁</button>
+          <button class="teach" data-label="その他">✋ その他</button>
+        </div>
+        <div class="row muted" id="sampleCounts">学習データ: なし</div>
+        <div class="row">
+          <label>写真から学習</label>
+          <select id="photoLabel" style="flex:0 0 auto"><option>野菜</option><option>包丁</option><option>その他</option></select>
+          <input type="file" id="photoFile" accept="image/*" multiple style="font-size:12px;flex:1;min-width:0">
+        </div>
+        <div class="row"><button id="clearLearn">学習データを消す</button><span class="muted">（ブラウザに自動保存されます）</span></div>
+        <div class="row"><label>差分しきい値</label><input type="range" id="diffThr" min="10" max="120" value="40"><span class="val" id="diffThrV"></span></div>
+        <div class="row"><label>最小サイズ</label><input type="range" id="fgMinArea" min="10" max="1500" value="120"><span class="val" id="fgMinAreaV"></span></div>
+        <div class="row"><label>確信度</label><input type="range" id="learnConf" min="0.3" max="0.95" step="0.05" value="0.6"><span class="val" id="learnConfV"></span></div>
+        <div class="row"><label><input type="checkbox" id="showFg" checked> 差分マスクを重ねて表示</label></div>
+      </div>
+
+      <div class="sub" id="colorBox">
+        <h3>色で追跡</h3>
+        <div class="row">
+          <button id="pickVeg">野菜の色を登録</button><button id="presetVeg" title="オレンジ">🟠</button><div class="swatch" id="swVeg"></div>
+          <button id="pickKnife">包丁の色を登録</button><button id="presetKnife" title="緑">🟢</button><div class="swatch" id="swKnife"></div>
+        </div>
+        <div class="row"><label>色の許容幅</label><input type="range" id="tol" min="5" max="60" value="18"><span class="val" id="tolV"></span></div>
+        <div class="row"><label>最小サイズ</label><input type="range" id="minArea" min="10" max="800" value="60"><span class="val" id="minAreaV"></span></div>
+        <div class="row"><label><input type="checkbox" id="showMask" checked> 色マスクを重ねて表示</label></div>
+      </div>
+
+      <div class="sub" id="yoloBox">
+        <h3>自前モデル(YOLO)</h3>
+        <div class="row"><label>モデル</label><input type="text" id="yoloModel" value="models/best.onnx"></div>
+        <div class="row"><button id="yoloLoad">読み込む</button><span id="yoloStat" class="muted">未読み込み</span></div>
+        <div class="row"><label>最低スコア</label><input type="range" id="yoloScore" min="0.05" max="0.9" step="0.05" value="0.4"><span class="val" id="yoloScoreV"></span></div>
+        <div class="row"><label>包丁とみなす</label><input type="text" id="yoloKnife" value="包丁,knife"></div>
+        <div class="row"><label>無視する</label><input type="text" id="yoloIgnore" value="その他,hand,other,_background"></div>
+        <div class="muted">それ以外のクラスはすべて「野菜」として扱います（train/README.md 参照）</div>
+      </div>
+
+      <div class="sub" id="aiBox">
+        <h3>汎用AI</h3>
+        <div class="row">
+          <label>モデル</label>
+          <select id="aiModel">
+            <option value="lite_mobilenet_v2">軽量（速い）</option>
+            <option value="mobilenet_v2">標準（精度高め）</option>
+          </select>
+        </div>
+        <div class="row"><label>最低スコア</label><input type="range" id="minScore" min="0.05" max="0.9" step="0.05" value="0.25"><span class="val" id="minScoreV"></span></div>
+        <div class="row"><label>野菜とみなす</label><input type="text" id="vegClasses" value="carrot,broccoli,banana,apple,orange,hot dog,donut,cake,pizza,sandwich"></div>
+        <div class="row"><label>包丁とみなす</label><input type="text" id="knifeClasses" value="knife,scissors,fork,spoon,toothbrush"></div>
+      </div>
+
+      <div class="sub">
+        <h3>切った判定</h3>
+        <div class="row"><label><input type="checkbox" id="useSwing" checked> 振り下ろし</label><span class="muted">包丁の下端が野菜の上→中へ入る</span></div>
+        <div class="row"><label>深さ</label><input type="range" id="depth" min="0.2" max="1.0" step="0.05" value="0.5"><span class="val" id="depthV"></span></div>
+        <div class="row"><label>制限時間(ms)</label><input type="range" id="windowMs" min="300" max="3000" step="100" value="1500"><span class="val" id="windowMsV"></span></div>
+        <div class="row"><label><input type="checkbox" id="useSplit" checked> 分離</label><span class="muted">野菜の塊が1つ→2つ（色で追跡時のみ）</span></div>
+      </div>
+    </details>
+  </aside>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/mobilenet@2.1.1/dist/mobilenet.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/knn-classifier@1.2.6/dist/knn-classifier.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.20.1/dist/ort.min.js"></script>
+<script src="yolo.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
