@@ -47,6 +47,41 @@ def load_image(path: Path, max_side: int) -> np.ndarray:
     return cv2.cvtColor(np.array(im), cv2.COLOR_RGB2BGR)
 
 
+def background_reference(bg_dir: Path, max_side: int):
+    """_background/ の写真の中央値画像を返す（固定カメラで撮った「何も無い台」）。無ければ None"""
+    files = sorted(p for p in bg_dir.iterdir() if p.suffix.lower() in EXTS) if bg_dir.exists() else []
+    files = [p for p in files if getattr(p.stat(), "st_blocks", 1) > 0][:30]
+    if not files:
+        return None
+    imgs = [load_image(p, max_side) for p in files]
+    h, w = imgs[0].shape[:2]
+    imgs = [im for im in imgs if im.shape[:2] == (h, w)]
+    return np.median(np.stack(imgs), axis=0).astype(np.uint8)
+
+
+def diff_box(img: np.ndarray, ref: np.ndarray, thr: int = 40):
+    """固定カメラの背景との差分から物体の枠を返す。木目の台でも使える。失敗したら None"""
+    if img.shape != ref.shape:
+        ref = cv2.resize(ref, (img.shape[1], img.shape[0]))
+    d = cv2.absdiff(img, ref).max(axis=2)
+    mask = (d > thr).astype(np.uint8) * 255
+    mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, np.ones((15, 15), np.uint8))
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours:
+        return None
+    h, w = mask.shape
+    areas = [cv2.contourArea(c) for c in contours]
+    biggest = max(areas)
+    if biggest < 0.003 * w * h:
+        return None
+    pts = np.vstack([c for c, a in zip(contours, areas) if a >= 0.15 * biggest])
+    x, y, bw, bh = cv2.boundingRect(pts)
+    if (bw * bh) / (w * h) > 0.92:
+        return None
+    return (x, y, x + bw, y + bh)
+
+
 def saturation_box(img: np.ndarray, work_side: int = 640, min_sat: int = 70, min_val: int = 40):
     """白い机の上の「色のついた物」の枠を返す。机・影・黒い縁は彩度が低いので除外される。失敗したら None"""
     h, w = img.shape[:2]
@@ -105,8 +140,9 @@ def grabcut_box(img: np.ndarray, work_side: int = 480, margin: float = 0.04):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--full", action="store_true", help="枠付けをせず画像全体を枠にする")
-    ap.add_argument("--method", choices=["sat", "grabcut"], default="sat",
-                    help="sat: 白い机の上の色つき物体を彩度で切り出す（既定）/ grabcut: 背景が単色でないとき")
+    ap.add_argument("--method", choices=["auto", "diff", "sat", "grabcut"], default="auto",
+                    help="auto: _background があれば diff、無ければ sat / diff: 固定カメラの背景差分（tools/capture.py で撮ったとき）"
+                         " / sat: 白い机の上の色つき物体を彩度で切り出す / grabcut: 背景が単色でないとき")
     ap.add_argument("--max-side", type=int, default=1280, help="保存する画像の長辺ピクセル")
     ap.add_argument("--val", type=float, default=0.15, help="検証用に回す割合")
     ap.add_argument("--seed", type=int, default=0)
@@ -132,6 +168,14 @@ def main():
     random.seed(args.seed)
     stats = {}
     fallback = 0
+
+    bg_ref = None
+    if args.method in ("auto", "diff"):
+        bg_ref = background_reference(RAW / BACKGROUND_DIR, args.max_side)
+        if args.method == "diff" and bg_ref is None:
+            raise SystemExit("--method diff には dataset/raw/_background/ の写真が必要です（tools/capture.py の B キー）")
+    method = "diff" if bg_ref is not None else ("sat" if args.method == "auto" else args.method)
+    print(f"枠付けの方法: {method}")
 
     skipped = []
 
@@ -164,7 +208,12 @@ def main():
             return
         if args.full:
             box = None
-        elif args.method == "sat":
+        elif method == "diff" and img.shape == bg_ref.shape:
+            box = diff_box(img, bg_ref) or saturation_box(img)
+        elif method == "diff":
+            # 背景と解像度が違う写真（別のカメラ・スマホ）は差分が使えないので彩度で
+            box = saturation_box(img) or grabcut_box(img)
+        elif method == "sat":
             box = saturation_box(img) or grabcut_box(img)
         else:
             box = grabcut_box(img)

@@ -1,0 +1,12 @@
+# Python 3.12 で動作確認済みの組み合わせ（2026-09-25）
+#   python3.12 -m venv .venv && .venv/bin/pip install -r requirements.txt
+# 注意: mediapipe 0.10 系は protobuf<5 / numpy<2 を要求するので、onnx は 1.16 系に固定している
+ultralytics==8.4.162
+onnx==1.16.2
+onnxruntime==1.30.0
+onnxslim==0.1.96
+mediapipe==0.10.21
+opencv-python==4.11.0.86
+numpy==1.26.4
+pillow-heif
+websockets==17.1
