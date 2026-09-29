@@ -8,3 +8,7 @@ dataset/raw/*
 dataset/yolo/
 dataset/preview/
 .DS_Store
+
+# センサーデバイス：PlatformIO のビルド成果物と、書き換え前の Flash のバックアップ
+device/.pio/
+device/backup/
