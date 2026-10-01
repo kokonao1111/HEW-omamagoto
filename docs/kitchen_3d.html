@@ -1,0 +1,1069 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>おままごとキッチン 組み立て 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@700&family=BIZ+UDPGothic:wght@400;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+  :root {
+    --ground: #edf1ee;
+    --panel: #fafbfa;
+    --chip: #eef2ef;
+    --ink: #1d2622;
+    --muted: #5b6862;
+    --line: #d3dbd6;
+    --accent: #c8452c;
+    --accent-ink: #ffffff;
+    --pick: #2f6fb8;
+    --viewport: #e3e9e5;
+    --floor: #d6ddd9;
+    --font-display: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", sans-serif;
+    --font-body: "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #101614;
+      --panel: #161e1b;
+      --chip: #1e2724;
+      --ink: #e4ece8;
+      --muted: #9aa7a1;
+      --line: #2a3531;
+      --accent: #f0704f;
+      --accent-ink: #1a0e0b;
+      --pick: #6fa8e8;
+      --viewport: #0d1311;
+      --floor: #1a211e;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #101614;
+    --panel: #161e1b;
+    --chip: #1e2724;
+    --ink: #e4ece8;
+    --muted: #9aa7a1;
+    --line: #2a3531;
+    --accent: #f0704f;
+    --accent-ink: #1a0e0b;
+    --pick: #6fa8e8;
+    --viewport: #0d1311;
+    --floor: #1a211e;
+    color-scheme: dark;
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.65;
+  }
+  .app {
+    box-sizing: border-box;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-inline: 16px;
+    padding-block: 12px;
+  }
+  .bar { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; }
+  h1 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 700;
+    font-size: 20px;
+    letter-spacing: 0.02em;
+    text-wrap: balance;
+  }
+  .spec { margin: 0; font-family: var(--font-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .work { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 12px; }
+  .stage {
+    position: relative;
+    min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--viewport);
+  }
+  .viewport { position: absolute; inset: 0; }
+  .viewport canvas { display: block; touch-action: none; }
+  .labels { position: absolute; inset: 0; pointer-events: none; }
+  .tools { position: absolute; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; }
+  .tools-view { top: 10px; left: 10px; }
+  .tools-show { top: 10px; right: 10px; justify-content: flex-end; max-width: 58%; }
+  .tools button, .toggle {
+    font: inherit;
+    font-size: 12px;
+    line-height: 1.4;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+  }
+  .tools button[aria-pressed="true"] { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+  .toggle { display: inline-flex; align-items: center; gap: 6px; user-select: none; }
+  .toggle input { margin: 0; accent-color: var(--accent); }
+  .hint, .legend-cams {
+    position: absolute;
+    left: 10px;
+    margin: 0;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    color: var(--muted);
+    background: var(--panel);
+    opacity: 0.92;
+  }
+  .hint { bottom: 8px; }
+  .legend-cams { bottom: 34px; }
+  .legend-cams b { font-weight: 700; }
+  .legend-cams .c0 { color: var(--accent); }
+  .legend-cams .c1 { color: #2f7d9a; }
+  .panel {
+    min-height: 0;
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 16px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: var(--panel);
+  }
+  .eyebrow { margin: 0; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em; color: var(--accent); font-variant-numeric: tabular-nums; }
+  h2 { margin: 2px 0 8px; font-family: var(--font-display); font-weight: 700; font-size: 22px; line-height: 1.35; text-wrap: balance; }
+  .step-text { margin: 0; max-width: 34em; }
+  .tips { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+  .tips li { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: baseline; }
+  .tips li::before {
+    content: "メモ";
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--accent);
+    border: 1px solid currentColor;
+    border-radius: 3px;
+    padding: 0 4px;
+  }
+  .key { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+  .key .red { color: var(--accent); font-weight: 700; }
+  .nav { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; }
+  .btn {
+    font: inherit;
+    font-weight: 700;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--line);
+    background: var(--chip);
+    color: var(--ink);
+    cursor: pointer;
+  }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  h3 { margin: 0 0 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: var(--muted); }
+  .parts { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .parts li {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    background: var(--chip);
+  }
+  .no { font-weight: 700; font-size: 15px; }
+  .dims { font-family: var(--font-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+  .picked-card { display: grid; gap: 2px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--pick); }
+  .picked-card .top { display: flex; align-items: baseline; gap: 10px; }
+  .picked-card .no { font-size: 20px; color: var(--pick); }
+  .picked-card .nm { font-weight: 700; font-size: 16px; }
+  .picked-card p { margin: 0; }
+  .picked-card .sub { font-size: 12px; color: var(--muted); }
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  .steps button {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 28px 1fr;
+    gap: 6px;
+    text-align: left;
+    font: inherit;
+    color: var(--ink);
+    background: none;
+    border: 0;
+    border-radius: 6px;
+    padding: 5px 8px;
+    cursor: pointer;
+  }
+  .steps button:hover { background: var(--chip); }
+  .steps .n { font-family: var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .steps button[aria-current="step"] { background: var(--chip); font-weight: 700; }
+  .steps button[aria-current="step"] .n { color: var(--accent); }
+  .steps button.done .t { color: var(--muted); }
+  .label {
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 12px;
+    line-height: 1.3;
+    white-space: nowrap;
+    padding: 1px 6px;
+    border-radius: 4px;
+    color: var(--ink);
+    background: var(--panel);
+    border: 1px solid var(--line);
+  }
+  .label.new { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+  .fallback { margin: 0; padding: 16px; }
+  @media (max-width: 860px) {
+    html, body { height: auto; }
+    .app { height: auto; }
+    .work { grid-template-columns: 1fr; }
+    .stage { height: 58vh; min-height: 320px; }
+    .panel { overflow: visible; }
+    .tools-show { top: 46px; left: 10px; right: 10px; max-width: none; justify-content: flex-start; }
+    .nav { position: sticky; bottom: env(safe-area-inset-bottom, 0px); z-index: 3; padding-block: 8px; background: var(--panel); }
+  }
+</style>
+
+<div class="app">
+  <header class="bar">
+    <h1>おままごとキッチン 組み立て 3D</h1>
+    <p class="spec" id="spec"></p>
+  </header>
+  <main class="work">
+    <section class="stage" aria-label="キッチンの 3D 図">
+      <div id="viewport" class="viewport"></div>
+      <div class="tools tools-view" role="group" aria-label="見る向き">
+        <button type="button" data-view="iso">斜め</button>
+        <button type="button" data-view="front">正面</button>
+        <button type="button" data-view="backiso">後ろ</button>
+        <button type="button" data-view="side">横</button>
+        <button type="button" data-view="top">上</button>
+      </div>
+      <div class="tools tools-show" role="group" aria-label="表示">
+        <label class="toggle"><input type="checkbox" id="t-explode"> 分解</label>
+        <label class="toggle"><input type="checkbox" id="t-labels"> 番号</label>
+        <label class="toggle"><input type="checkbox" id="t-ghost" checked> 完成形をうすく</label>
+        <label class="toggle"><input type="checkbox" id="t-cams"> カメラの視野</label>
+        <label class="toggle"><input type="checkbox" id="t-desk" checked> 机</label>
+      </div>
+      <p class="legend-cams" id="legend-cams" hidden><b class="c0">赤</b> = 中央カメラ ／ <b class="c1">青</b> = 左右のカメラ</p>
+      <p class="hint">ドラッグで回す ・ ホイールかピンチで拡大 ・ 右ドラッグか 2 本指で移動 ・ 板をタップで寸法</p>
+    </section>
+    <aside class="panel" aria-live="polite">
+      <div>
+        <p class="eyebrow" id="step-count"></p>
+        <h2 id="step-title"></h2>
+        <p class="step-text" id="step-text"></p>
+        <ul class="tips" id="step-tips"></ul>
+        <p class="key"><span class="red">赤い線</span>の板がこの工程で付ける部材。<span class="red">赤い矢印</span>の向きに入れる。</p>
+      </div>
+      <div class="nav">
+        <button type="button" class="btn" id="prev">◀ 前へ</button>
+        <button type="button" class="btn primary" id="next">次へ ▶</button>
+      </div>
+      <section id="picked" hidden>
+        <h3>選んだ部材</h3>
+        <div class="picked-card" id="picked-body"></div>
+      </section>
+      <section>
+        <h3 id="parts-heading">この工程で付ける部材</h3>
+        <ul class="parts" id="step-parts"></ul>
+      </section>
+      <section>
+        <h3>工程</h3>
+        <ol class="steps" id="step-list"></ol>
+      </section>
+    </aside>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS2DRenderer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/geometries/RoundedBoxGeometry.js"></script>
+<script>
+(function () {
+  "use strict";
+  const DATA = {"dims":{"W":1050,"D":550,"H":770,"depth_total":613,"counter":850,"desk_h":700},"front":{"w":1050,"h":120,"knobs":[700.0,900.0]},"items":[{"id":"desk","no":"","name":"机","step":-1,"kind":"desk","shape":"box","from":[0.0,0.0,0.0],"noArrow":true,"sub":false,"ex":null,"dims":"","where":"","box":[-75.0,0.0,-25.0,1125.0,600.0,0.0],"round":3.0},{"id":"leg00","no":"","name":"机の脚","step":-1,"kind":"leg","shape":"box","from":[0.0,0.0,0.0],"noArrow":true,"sub":false,"ex":null,"dims":"","where":"","box":[-45.0,30.0,-700.0,-5.0,70.0,-25.0]},{"id":"leg01","no":"","name":"机の脚","step":-1,"kind":"leg","shape":"box","from":[0.0,0.0,0.0],"noArrow":true,"sub":false,"ex":null,"dims":"","where":"","box":[-45.0,530.0,-700.0,-5.0,570.0,-25.0]},{"id":"leg10","no":"","name":"机の脚","step":-1,"kind":"leg","shape":"box","from":[0.0,0.0,0.0],"noArrow":true,"sub":false,"ex":null,"dims":"","where":"","box":[1055.0,30.0,-700.0,1095.0,70.0,-25.0]},{"id":"leg11","no":"","name":"机の脚","step":-1,"kind":"leg","shape":"box","from":[0.0,0.0,0.0],"noArrow":true,"sub":false,"ex":null,"dims":"","where":"","box":[1055.0,530.0,-700.0,1095.0,570.0,-25.0]},{"id":"11","no":"⑪","name":"底板","step":1,"kind":"ply","shape":"box","from":[0.0,0.0,170.0],"noArrow":false,"sub":false,"ex":[0.0,0.0,0.0],"dims":"1050 × 550 × 15","where":"いちばん下。前板・側板・中仕切り・背板 下をこの上に立てる。土台の中の基板と配線もこの上に置く","box":[0.0,0.0,0.0,1050.0,550.0,15.0]},{"id":"1a","no":"①a","name":"背板 下","step":2,"kind":"ply","shape":"box","from":[0.0,170.0,0.0],"noArrow":false,"sub":false,"ex":[0.0,200.0,40.0],"dims":"1050 × 303 × 15","where":"底板⑪の上から窓の下の縁まで。土台の後ろの板も兼ねる。上の縁が窓の下の縁になる","box":[0.0,535.0,15.0,1050.0,550.0,318.0]},{"id":"1b","no":"①b","name":"背板 上","step":2,"kind":"ply","shape":"box","from":[0.0,0.0,170.0],"noArrow":false,"sub":false,"ex":[0.0,200.0,150.0],"dims":"1050 × 111 × 15","where":"窓の上。下の縁が窓の上の縁になる。上の縁に中央カメラのクリップを挟む","box":[0.0,535.0,659.0,1050.0,550.0,770.0]},{"id":"1c","no":"①c","name":"背板 左","step":2,"kind":"ply","shape":"box","from":[-170.0,0.0,0.0],"noArrow":false,"sub":false,"ex":[-70.0,200.0,95.0],"dims":"372 × 341 × 15","where":"窓の左。右の縁が窓の左の縁になる","box":[0.0,535.0,318.0,372.0,550.0,659.0]},{"id":"1d","no":"①d","name":"背板 右","step":2,"kind":"ply","shape":"box","from":[170.0,0.0,0.0],"noArrow":false,"sub":false,"ex":[70.0,200.0,95.0],"dims":"76 × 341 × 15","where":"窓の右。左の縁が窓の右の縁になる","box":[974.0,535.0,318.0,1050.0,550.0,659.0]},{"id":"7l","no":"⑦","name":"縦の受け","step":2,"kind":"ply","shape":"box","from":[0.0,170.0,0.0],"noArrow":false,"sub":false,"ex":[0.0,330.0,95.0],"dims":"481 × 63 × 15","where":"背板の裏、モニターの左右に立てる。L 金具 3 個で背板の下・左か右・上に留め、背板の継ぎ目をつなぐ","box":[348.5,550.0,238.0,363.5,613.0,719.0]},{"id":"7r","no":"⑦","name":"縦の受け","step":2,"kind":"ply","shape":"box","from":[0.0,170.0,0.0],"noArrow":false,"sub":false,"ex":[0.0,330.0,95.0],"dims":"481 × 63 × 15","where":"背板の裏、モニターの左右に立てる。L 金具 3 個で背板の下・左か右・上に留め、背板の継ぎ目をつなぐ","box":[982.5,550.0,238.0,997.5,613.0,719.0]},{"id":"Ll0","no":"","name":"L 金具","step":2,"kind":"metal","shape":"box","from":[0.0,170.0,0.0],"noArrow":true,"sub":false,"ex":[0.0,330.0,95.0],"dims":"30〜40mm","where":"縦の受け⑦と背板の継ぎ目をまたいで留める","box":[323.5,550.0,266.0,348.5,575.0,290.0]},{"id":"Lr0","no":"","name":"L 金具","step":2,"kind":"metal","shape":"box","from":[0.0,170.0,0.0],"noArrow":true,"sub":false,"ex":[0.0,330.0,95.0],"dims":"30〜40mm","where":"縦の受け⑦と背板の継ぎ目をまたいで留める","box":[997.5,550.0,266.0,1022.5,575.0,290.0]},{"id":"Ll1","no":"","name":"L 金具","step":2,"kind":"metal","shape":"box","from":[0.0,170.0,0.0],"noArrow":true,"sub":false,"ex":[0.0,330.0,95.0],"dims":"30〜40mm","where":"縦の受け⑦と背板の継ぎ目をまたいで留める","box":[323.5,550.0,396.5,348.5,575.0,420.5]},{"id":"Lr1","no":"","name":"L 金具","step":2,"kind":"metal","shape":"box","from":[0.0,170.0,0.0],"noArrow":true,"sub":false,"ex":[0.0,330.0,95.0],"dims":"30〜40mm","where":"縦の受け⑦と背板の継ぎ目をまたいで留める","box":[997.5,550.0,396.5,1022.5,575.0,420.5]},{"id":"Ll2","no":"","name":"L 金具","step":2,"kind":"metal","shape":"box","from":[0.0,170.0,0.0],"noArrow":true,"sub":false,"ex":[0.0,330.0,95.0],"dims":"30〜40mm","where":"縦の受け⑦と背板の継ぎ目をまたいで留める","box":[323.5,550.0,677.0,348.5,575.0,701.0]},{"id":"Lr2","no":"","name":"L 金具","step":2,"kind":"metal","shape":"box","from":[0.0,170.0,0.0],"noArrow":true,"sub":false,"ex":[0.0,330.0,95.0],"dims":"30〜40mm","where":"縦の受け⑦と背板の継ぎ目をまたいで留める","box":[997.5,550.0,677.0,1022.5,575.0,701.0]},{"id":"2","no":"②","name":"前板","step":3,"kind":"mint","shape":"box","from":[0.0,-170.0,0.0],"noArrow":false,"sub":false,"ex":[0.0,-170.0,40.0],"dims":"1050 × 120 × 15","where":"土台のいちばん前。底板⑪の上、天板の下。つまみが付く","box":[0.0,0.0,15.0,1050.0,15.0,135.0],"face":"knobs"},{"id":"4l","no":"④","name":"側板","step":3,"kind":"ply","shape":"box","from":[-170.0,0.0,0.0],"noArrow":false,"sub":false,"ex":[-170.0,0.0,40.0],"dims":"520 × 120 × 15","where":"土台の左右の端。底板⑪の上で、前板と背板の間にはさむ","box":[0.0,15.0,15.0,15.0,535.0,135.0]},{"id":"4r","no":"④","name":"側板","step":3,"kind":"ply","shape":"box","from":[170.0,0.0,0.0],"noArrow":false,"sub":false,"ex":[170.0,0.0,40.0],"dims":"520 × 120 × 15","where":"土台の左右の端。底板⑪の上で、前板と背板の間にはさむ","box":[1035.0,15.0,15.0,1050.0,535.0,135.0]},{"id":"5","no":"⑤","name":"中仕切り","step":3,"kind":"ply","shape":"box","from":[0.0,0.0,170.0],"noArrow":false,"sub":false,"ex":[0.0,0.0,40.0],"dims":"520 × 120 × 15","where":"土台の中。左端から 580。底板⑪の上に立て、天板がたわまないように支える","box":[580.0,15.0,15.0,595.0,535.0,135.0]},{"id":"kp0","no":"","name":"つまみの部品","step":4,"kind":"metal","shape":"rod","from":[0.0,90.0,0.0],"noArrow":true,"sub":false,"ex":[0.0,-170.0,40.0],"dims":"ネジ部分 M7〜M9","where":"可変抵抗かロータリーエンコーダ。前板②の穴に裏から差し込み、表からナットで締める","a":[700.0,15.0,75.0],"b":[700.0,37.0,75.0],"r":12.0},{"id":"kn0","no":"","name":"つまみ","step":4,"kind":"knob","shape":"knob","from":[0.0,-170.0,0.0],"noArrow":false,"sub":false,"ex":[0.0,-290.0,40.0],"dims":"直径 40〜50","where":"前板②の表で、つまみの部品の軸にかぶせる","c":[700.0,-12.0,75.0],"r":22.0,"h":24.0},{"id":"kp1","no":"","name":"つまみの部品","step":4,"kind":"metal","shape":"rod","from":[0.0,90.0,0.0],"noArrow":true,"sub":false,"ex":[0.0,-170.0,40.0],"dims":"ネジ部分 M7〜M9","where":"可変抵抗かロータリーエンコーダ。前板②の穴に裏から差し込み、表からナットで締める","a":[900.0,15.0,75.0],"b":[900.0,37.0,75.0],"r":12.0},{"id":"kn1","no":"","name":"つまみ","step":4,"kind":"knob","shape":"knob","from":[0.0,-170.0,0.0],"noArrow":false,"sub":false,"ex":[0.0,-290.0,40.0],"dims":"直径 40〜50","where":"前板②の表で、つまみの部品の軸にかぶせる","c":[900.0,-12.0,75.0],"r":22.0,"h":24.0},{"id":"esp","no":"","name":"基板（ESP32）","step":4,"kind":"pcb","shape":"box","from":[0.0,0.0,170.0],"noArrow":false,"sub":false,"ex":[0.0,0.0,0.0],"dims":"約 55 × 28（開発ボード）","where":"底板⑪の右の部屋にスペーサーで留める","box":[690.0,380.0,20.0,745.0,408.0,28.0]},{"id":"w00","no":"","name":"配線","step":4,"kind":"wire","shape":"rod","from":[0.0,0.0,120.0],"noArrow":true,"sub":false,"ex":[0.0,0.0,0.0],"dims":"","where":"つまみの部品 → 基板（ESP32）","a":[700.0,39.0,69.0],"b":[700.0,75.0,18.0],"r":2.5},{"id":"w01","no":"","name":"配線","step":4,"kind":"wire","shape":"rod","from":[0.0,0.0,120.0],"noArrow":true,"sub":true,"ex":[0.0,0.0,0.0],"dims":"","where":"つまみの部品 → 基板（ESP32）","a":[700.0,75.0,18.0],"b":[700.0,382.0,18.0],"r":2.5},{"id":"w10","no":"","name":"配線","step":4,"kind":"wire","shape":"rod","from":[0.0,0.0,120.0],"noArrow":true,"sub":false,"ex":[0.0,0.0,0.0],"dims":"","where":"つまみの部品 → 基板（ESP32）","a":[900.0,39.0,69.0],"b":[900.0,75.0,18.0],"r":2.5},{"id":"w11","no":"","name":"配線","step":4,"kind":"wire","shape":"rod","from":[0.0,0.0,120.0],"noArrow":true,"sub":true,"ex":[0.0,0.0,0.0],"dims":"","where":"つまみの部品 → 基板（ESP32）","a":[900.0,75.0,18.0],"b":[900.0,360.0,18.0],"r":2.5},{"id":"w12","no":"","name":"配線","step":4,"kind":"wire","shape":"rod","from":[0.0,0.0,120.0],"noArrow":true,"sub":true,"ex":[0.0,0.0,0.0],"dims":"","where":"つまみの部品 → 基板（ESP32）","a":[900.0,360.0,18.0],"b":[730.0,360.0,18.0],"r":2.5},{"id":"w13","no":"","name":"配線","step":4,"kind":"wire","shape":"rod","from":[0.0,0.0,120.0],"noArrow":true,"sub":true,"ex":[0.0,0.0,0.0],"dims":"","where":"つまみの部品 → 基板（ESP32）","a":[730.0,360.0,18.0],"b":[730.0,382.0,18.0],"r":2.5},{"id":"usb0","no":"","name":"USB ケーブル","step":4,"kind":"usb","shape":"rod","from":[0.0,0.0,120.0],"noArrow":true,"sub":false,"ex":[0.0,0.0,0.0],"dims":"","where":"基板 → 背板 下①a の Φ30 → 机の下の PC（電源もここから）","a":[743.0,394.0,24.0],"b":[760.0,394.0,18.0],"r":3.0},{"id":"usb1","no":"","name":"USB ケーブル","step":4,"kind":"usb","shape":"rod","from":[0.0,0.0,120.0],"noArrow":true,"sub":true,"ex":[0.0,0.0,0.0],"dims":"","where":"基板 → 背板 下①a の Φ30 → 机の下の PC（電源もここから）","a":[760.0,394.0,18.0],"b":[930.0,394.0,18.0],"r":3.0},{"id":"usb2","no":"","name":"USB ケーブル","step":4,"kind":"usb","shape":"rod","from":[0.0,0.0,120.0],"noArrow":true,"sub":true,"ex":[0.0,0.0,0.0],"dims":"","where":"基板 → 背板 下①a の Φ30 → 机の下の PC（電源もここから）","a":[930.0,394.0,18.0],"b":[930.0,495.0,18.0],"r":3.0},{"id":"usb3","no":"","name":"USB ケーブル","step":4,"kind":"usb","shape":"rod","from":[0.0,0.0,120.0],"noArrow":true,"sub":true,"ex":[0.0,0.0,0.0],"dims":"","where":"基板 → 背板 下①a の Φ30 → 机の下の PC（電源もここから）","a":[930.0,495.0,18.0],"b":[930.0,535.0,75.0],"r":3.0},{"id":"usb4","no":"","name":"USB ケーブル","step":4,"kind":"usb","shape":"rod","from":[0.0,0.0,120.0],"noArrow":true,"sub":true,"ex":[0.0,0.0,0.0],"dims":"","where":"基板 → 背板 下①a の Φ30 → 机の下の PC（電源もここから）","a":[930.0,535.0,75.0],"b":[930.0,630.0,75.0],"r":3.0},{"id":"3","no":"③","name":"天板","step":5,"kind":"ply","shape":"box","from":[0.0,0.0,240.0],"noArrow":false,"sub":false,"ex":[0.0,0.0,230.0],"dims":"1050 × 535 × 15","where":"土台の上。後ろの縁を背板の前の面に当てる","box":[0.0,0.0,135.0,1050.0,535.0,150.0]},{"id":"9","no":"⑨","name":"コンロ板","step":5,"kind":"stove","shape":"box","from":[0.0,0.0,240.0],"noArrow":false,"sub":false,"ex":[0.0,0.0,330.0],"dims":"400 × 300 × 15","where":"天板の上。天板をのせる前に、天板の裏からビスで留めておく","box":[600.0,60.0,150.0,1000.0,360.0,165.0]},{"id":"bn0","no":"","name":"バーナーと五徳","step":5,"kind":"burner","shape":"burner","from":[0.0,0.0,240.0],"noArrow":true,"sub":true,"ex":[0.0,0.0,360.0],"dims":"","where":"","c":[700.0,210.0,165.0],"r":60.0},{"id":"bn1","no":"","name":"バーナーと五徳","step":5,"kind":"burner","shape":"burner","from":[0.0,0.0,240.0],"noArrow":true,"sub":true,"ex":[0.0,0.0,360.0],"dims":"","where":"","c":[900.0,210.0,165.0],"r":60.0},{"id":"6l","no":"⑥","name":"袖板","step":6,"kind":"ply","shape":"box","from":[-170.0,0.0,0.0],"noArrow":false,"sub":false,"ex":[-170.0,0.0,330.0],"dims":"150 × 620 × 15","where":"天板の上の左右の端に立てる。背板の 4 枚の端をつなぎ、前の縁に横カメラのアームを挟む","box":[0.0,385.0,150.0,15.0,535.0,770.0]},{"id":"6r","no":"⑥","name":"袖板","step":6,"kind":"ply","shape":"box","from":[170.0,0.0,0.0],"noArrow":false,"sub":false,"ex":[170.0,0.0,330.0],"dims":"150 × 620 × 15","where":"天板の上の左右の端に立てる。背板の 4 枚の端をつなぎ、前の縁に横カメラのアームを挟む","box":[1035.0,385.0,150.0,1050.0,535.0,770.0]},{"id":"8","no":"⑧","name":"下の受け木","step":7,"kind":"ply","shape":"box","from":[0.0,170.0,0.0],"noArrow":false,"sub":false,"ex":[0.0,330.0,40.0],"dims":"619 × 63 × 15","where":"モニターをのせる板。左右の縦の受けの間にはさみ、外側からビスで留める","box":[363.5,550.0,285.0,982.5,613.0,300.0]},{"id":"mon","no":"","name":"モニター 27インチ","step":8,"kind":"monitor","shape":"box","from":[0.0,450.0,0.0],"noArrow":false,"sub":false,"ex":[0.0,480.0,95.0],"dims":"613 × 364 × 45","where":"背板の裏から窓にはめる。下の受け木⑧にのせる","box":[366.5,550.0,300.0,979.5,595.0,664.0],"round":6.0},{"id":"scr","no":"","name":"画面","step":8,"kind":"screen","shape":"screen","from":[0.0,450.0,0.0],"noArrow":true,"sub":true,"ex":[0.0,480.0,95.0],"dims":"","where":"","box":[374.0,549.5,320.0,972.0,550.0,657.0]},{"id":"10","no":"⑩","name":"押さえ桟","step":9,"kind":"ply","shape":"box","from":[0.0,170.0,0.0],"noArrow":false,"sub":false,"ex":[0.0,610.0,95.0],"dims":"619 × 60 × 15","where":"モニターの裏。左右の縦の受けの間の後ろの端にはさみ、外側から木ネジ 2 本ずつで留める（運ぶときは外す）。モニターとの間に薄いスポンジを貼る","box":[363.5,598.0,452.0,982.5,613.0,512.0]},{"id":"cliptop","no":"","name":"カメラのクリップ","step":10,"kind":"clip","shape":"box","from":[0.0,0.0,170.0],"noArrow":true,"sub":true,"ex":[0.0,200.0,240.0],"dims":"","where":"","box":[544.0,527.0,770.0,596.0,558.0,777.0]},{"id":"clipfront","no":"","name":"カメラのクリップ","step":10,"kind":"clip","shape":"box","from":[0.0,0.0,170.0],"noArrow":true,"sub":true,"ex":[0.0,200.0,240.0],"dims":"","where":"","box":[546.0,527.0,756.0,594.0,535.0,770.0]},{"id":"clipback","no":"","name":"カメラのクリップ","step":10,"kind":"clip","shape":"box","from":[0.0,0.0,170.0],"noArrow":true,"sub":true,"ex":[0.0,200.0,240.0],"dims":"","where":"","box":[548.0,550.0,700.0,592.0,557.0,770.0]},{"id":"hinge","no":"","name":"カメラのクリップ","step":10,"kind":"clip","shape":"rod","from":[0.0,0.0,170.0],"noArrow":true,"sub":true,"ex":[0.0,200.0,240.0],"dims":"","where":"","a":[570.0,542.5,777.0],"b":[570.0,538.5,813.3],"r":6.0},{"id":"camc","no":"","name":"中央カメラ（Anker C200）","step":10,"kind":"camera","shape":"cam","from":[0.0,0.0,170.0],"noArrow":false,"sub":false,"ex":[0.0,200.0,240.0],"dims":"画角 78°","where":"カメラに付いているクリップで背板 上①b の上の縁に挟む。下に約 64° 傾けて、まな板とコンロの真ん中を向ける","c":[570.0,510.0,805.0],"aim":[570.0,205.0,180.0],"body":[70.0,44.0,40.0],"lens":11.0,"tone":"dark"},{"id":"clampl","no":"","name":"クランプ式アーム","step":11,"kind":"arm","shape":"box","from":[-170.0,0.0,0.0],"noArrow":false,"sub":false,"ex":[-260.0,0.0,330.0],"dims":"クランプの開き 15mm 以上","where":"袖板⑥の前の縁に挟む。関節を曲げてカメラの向きを決める","box":[-20.5,371.0,190.0,35.5,419.0,260.0],"round":6.0},{"id":"rodl0","no":"","name":"アーム","step":11,"kind":"arm","shape":"rod","from":[-170.0,0.0,0.0],"noArrow":true,"sub":true,"ex":[-260.0,0.0,330.0],"dims":"","where":"","a":[-24.0,395.0,260.0],"b":[-24.0,395.0,480.0],"r":9.0},{"id":"rodl1","no":"","name":"アーム","step":11,"kind":"arm","shape":"rod","from":[-170.0,0.0,0.0],"noArrow":true,"sub":true,"ex":[-260.0,0.0,330.0],"dims":"","where":"","a":[-24.0,395.0,480.0],"b":[-60.6,350.0,654.2],"r":8.0},{"id":"rodl2","no":"","name":"アーム","step":11,"kind":"arm","shape":"rod","from":[-170.0,0.0,0.0],"noArrow":true,"sub":true,"ex":[-260.0,0.0,330.0],"dims":"","where":"","a":[-60.6,350.0,654.2],"b":[-97.2,245.0,748.5],"r":7.0},{"id":"rodl3","no":"","name":"アーム","step":11,"kind":"arm","shape":"rod","from":[-170.0,0.0,0.0],"noArrow":true,"sub":true,"ex":[-260.0,0.0,330.0],"dims":"","where":"","a":[-97.2,245.0,748.5],"b":[-81.4,242.9,756.8],"r":4.5},{"id":"jointl0","no":"","name":"アームの関節","step":11,"kind":"arm","shape":"ball","from":[-170.0,0.0,0.0],"noArrow":true,"sub":true,"ex":[-260.0,0.0,330.0],"dims":"","where":"","c":[-24.0,395.0,480.0],"r":13.0},{"id":"jointl1","no":"","name":"アームの関節","step":11,"kind":"arm","shape":"ball","from":[-170.0,0.0,0.0],"noArrow":true,"sub":true,"ex":[-260.0,0.0,330.0],"dims":"","where":"","c":[-60.6,350.0,654.2],"r":12.0},{"id":"jointl2","no":"","name":"アームの関節","step":11,"kind":"arm","shape":"ball","from":[-170.0,0.0,0.0],"noArrow":true,"sub":true,"ex":[-260.0,0.0,330.0],"dims":"","where":"","c":[-97.2,245.0,748.5],"r":10.0},{"id":"caml","no":"","name":"左のカメラ（Brio 100 など）","step":11,"kind":"camera","shape":"cam","from":[-170.0,0.0,0.0],"noArrow":true,"sub":false,"ex":[-260.0,0.0,330.0],"dims":"画角 58°","where":"まな板を狙う","c":[-60.0,240.0,750.0],"aim":[240.0,200.0,170.0],"body":[62.0,32.0,32.0],"lens":8.0,"tone":"light"},{"id":"clampr","no":"","name":"クランプ式アーム","step":11,"kind":"arm","shape":"box","from":[170.0,0.0,0.0],"noArrow":false,"sub":false,"ex":[260.0,0.0,330.0],"dims":"クランプの開き 15mm 以上","where":"袖板⑥の前の縁に挟む。関節を曲げてカメラの向きを決める","box":[1014.5,371.0,190.0,1070.5,419.0,260.0],"round":6.0},{"id":"rodr0","no":"","name":"アーム","step":11,"kind":"arm","shape":"rod","from":[170.0,0.0,0.0],"noArrow":true,"sub":true,"ex":[260.0,0.0,330.0],"dims":"","where":"","a":[1074.0,395.0,260.0],"b":[1074.0,395.0,480.0],"r":9.0},{"id":"rodr1","no":"","name":"アーム","step":11,"kind":"arm","shape":"rod","from":[170.0,0.0,0.0],"noArrow":true,"sub":true,"ex":[260.0,0.0,330.0],"dims":"","where":"","a":[1074.0,395.0,480.0],"b":[1110.5,350.1,656.5],"r":8.0},{"id":"rodr2","no":"","name":"アーム","step":11,"kind":"arm","shape":"rod","from":[170.0,0.0,0.0],"noArrow":true,"sub":true,"ex":[260.0,0.0,330.0],"dims":"","where":"","a":[1110.5,350.1,656.5],"b":[1147.1,245.3,752.9],"r":7.0},{"id":"rodr3","no":"","name":"アーム","step":11,"kind":"arm","shape":"rod","from":[170.0,0.0,0.0],"noArrow":true,"sub":true,"ex":[260.0,0.0,330.0],"dims":"","where":"","a":[1147.1,245.3,752.9],"b":[1130.4,242.9,759.3],"r":4.5},{"id":"jointr0","no":"","name":"アームの関節","step":11,"kind":"arm","shape":"ball","from":[170.0,0.0,0.0],"noArrow":true,"sub":true,"ex":[260.0,0.0,330.0],"dims":"","where":"","c":[1074.0,395.0,480.0],"r":13.0},{"id":"jointr1","no":"","name":"アームの関節","step":11,"kind":"arm","shape":"ball","from":[170.0,0.0,0.0],"noArrow":true,"sub":true,"ex":[260.0,0.0,330.0],"dims":"","where":"","c":[1110.5,350.1,656.5],"r":12.0},{"id":"jointr2","no":"","name":"アームの関節","step":11,"kind":"arm","shape":"ball","from":[170.0,0.0,0.0],"noArrow":true,"sub":true,"ex":[260.0,0.0,330.0],"dims":"","where":"","c":[1147.1,245.3,752.9],"r":10.0},{"id":"camr","no":"","name":"右のカメラ（Brio 100 など）","step":11,"kind":"camera","shape":"cam","from":[170.0,0.0,0.0],"noArrow":true,"sub":false,"ex":[260.0,0.0,330.0],"dims":"画角 58°","where":"フライパンを狙う","c":[1110.0,240.0,750.0],"aim":[900.0,210.0,190.0],"body":[62.0,32.0,32.0],"lens":8.0,"tone":"light"},{"id":"board","no":"","name":"まな板（おもちゃ）","step":12,"kind":"board","shape":"box","from":[0.0,0.0,170.0],"noArrow":false,"sub":false,"ex":[0.0,0.0,330.0],"dims":"300 × 220（仮）","where":"まな板のゾーン。カメラのキャリブレーションで 4 隅を登録する","box":[90.0,90.0,150.0,390.0,310.0,170.0],"round":8.0},{"id":"carrot","no":"","name":"にんじん（おもちゃ）","step":12,"kind":"carrot","shape":"carrot","from":[0.0,0.0,170.0],"noArrow":true,"sub":true,"ex":[0.0,0.0,400.0],"dims":"","where":"","c":[230.0,200.0,190.0],"len":150.0,"r":20.0,"gap":8.0},{"id":"pan","no":"","name":"フライパン（おもちゃ）","step":12,"kind":"pan","shape":"pan","from":[0.0,0.0,170.0],"noArrow":false,"sub":false,"ex":[0.0,0.0,460.0],"dims":"直径 180（仮）","where":"コンロの右のバーナーの上","c":[900.0,210.0,181.0],"r":90.0,"h":30.0,"handle":[1.0,-0.4]},{"id":"mw","no":"","name":"電子レンジ（おもちゃ）","step":12,"kind":"mw","shape":"microwave","from":[0.0,0.0,170.0],"noArrow":false,"sub":false,"ex":[0.0,0.0,330.0],"dims":"280 × 200 × 230（仮）","where":"天板の左奥に置く","box":[30.0,320.0,150.0,310.0,520.0,380.0]},{"id":"spice0","no":"","name":"調味料の容器","step":12,"kind":"spice","shape":"bottle","from":[0.0,0.0,170.0],"noArrow":true,"sub":true,"ex":[0.0,0.0,330.0],"dims":"おもちゃ（中に M5StickS3）","where":"調味料の置き場","c":[430.0,385.0,150.0],"r":24.0,"h":130.0,"cap":0.0},{"id":"spice1","no":"","name":"調味料の容器","step":12,"kind":"spice","shape":"bottle","from":[0.0,0.0,170.0],"noArrow":false,"sub":false,"ex":[0.0,0.0,330.0],"dims":"おもちゃ（中に M5StickS3）","where":"調味料の置き場","c":[490.0,385.0,150.0],"r":24.0,"h":130.0,"cap":1.0},{"id":"spice2","no":"","name":"調味料の容器","step":12,"kind":"spice","shape":"bottle","from":[0.0,0.0,170.0],"noArrow":true,"sub":true,"ex":[0.0,0.0,330.0],"dims":"おもちゃ（中に M5StickS3）","where":"調味料の置き場","c":[550.0,385.0,150.0],"r":24.0,"h":130.0,"cap":2.0},{"id":"plate","no":"","name":"皿","step":12,"kind":"plate","shape":"plate","from":[0.0,0.0,170.0],"noArrow":false,"sub":false,"ex":[0.0,0.0,330.0],"dims":"おもちゃ","where":"できた料理を出す所","c":[490.0,180.0,150.0],"r":72.0}],"steps":[{"title":"完成形","view":"iso","text":"机の上に置く卓上型のキッチン。天板は床から 850（机 700 のとき）。モニターは背板の窓に後ろからはめる。「組み立てを始める」で 1 工程ずつ見られる。","tips":["板をタップすると、寸法と付く所が出る","「分解」をオンにすると、板どうしのつながり方が見やすい"]},{"title":"底板を置く","view":"iso","text":"底板⑪を置く。土台の板（前板・側板・中仕切り・背板 下）は、すべてこの 1 枚の上に立てる。土台の中の基板と配線もこの上に置く。","tips":["運ぶときは、底板ごと下から持つ","机に置くときは、底板の下に滑り止めシートを敷く"]},{"title":"背板を四角につなぐ","view":"backiso","text":"背板の 4 枚（①a 下・①b 上・①c 左・①d 右）を窓の形に並べる。窓の左右に縦の受け⑦を立て、L 金具で継ぎ目をまたいで留める。つないだ背板を、底板⑪の後ろの端に立てる。","tips":["窓の大きさは 602 × 341","実際は床に表を下にして並べてつなぎ、つないでから立てる","窓の対角線 2 本が同じ長さなら直角"]},{"title":"土台の枠を付ける","view":"iso","text":"底板⑪の上に前板②・側板④ 2 枚・中仕切り⑤を立てて、土台の枠を作る。側板と中仕切りは、背板の後ろからもビスで留める。","tips":["前板は先にミントグリーンに塗り、つまみの目盛り（切・弱・中・強）を描いておく","底板はボンドを使わずビスだけで留めると、あとで外して中を直せる"]},{"title":"つまみと基板","view":"top","text":"つまみの部品を前板の裏から差し込み、表からナットで締めてつまみを付ける。右の部屋の底板に基板（ESP32）を留めて配線し、USB ケーブルを背板 下①a の穴から外に出す。","tips":["天板をのせると中に手が入らない。配線はここで済ませる","土台の中の高さは 120（底板の上から天板の下まで）","左の部屋は空き。電子レンジにスイッチを付けるときだけ線を通す"]},{"title":"天板とコンロ板をのせる","view":"iso","text":"コンロ板⑨を天板③の上の位置に合わせ、天板の裏からビスで留める。天板を土台にのせ、上から前板・側板・中仕切りへビス。後ろの縁は背板の後ろからビスで留める。","tips":["天板の後ろの縁は背板の前の面に当てる","バーナー（直径 120）と五徳は、おもちゃの部品か 3D プリントで作る"]},{"title":"袖板を立てる","view":"iso","text":"袖板⑥を天板の上の左右の端に立てる。背板の後ろから 4 枚それぞれにビスを打ち、背板の端をつなぐ。","tips":["内側の下の角は L 金具で天板に留める","前の縁は、あとで左右のカメラのアームを挟む所"]},{"title":"下の受け木","view":"backiso","text":"下の受け木⑧を縦の受けの間にはさみ、縦の受けの外側からビス 2 本ずつで留める。モニターはこの上にのる。","tips":[]},{"title":"モニターを後ろからはめる","view":"backiso","text":"後ろから、モニターを下の受け木⑧にのせ、画面を窓に押し当てる。前から見て、画面が窓の真ん中に来ているか確かめる。","tips":["モニターのケーブルは背板の後ろからそのまま下の PC へ"]},{"title":"押さえ桟で留める","view":"backiso","text":"モニターの背面に薄いスポンジを貼り、押さえ桟⑩を縦の受けの間の後ろの端にはさむ。外側から木ネジ 2 本ずつで留める。","tips":["運ぶときはこの木ネジ 4 本を外し、モニターを後ろに抜く"]},{"title":"中央のカメラ","view":"iso","text":"中央カメラに付いているクリップを、背板 上①b の上の縁に挟む。カメラを下に傾けて、まな板とコンロの真ん中を向ける。","tips":["カメラは水平から下に約 64° 向ける。クリップの角度が足りないときは、小さな自由雲台を足す","中央カメラの画角は 78° にする"]},{"title":"左右のカメラ","view":"iso","text":"両サイドの袖板⑥の前の縁にクランプ式の関節アームを挟み、先にカメラを付ける。左のカメラはまな板を、右のカメラはフライパンを狙う。","tips":["カメラは本体の横から 60 ほど外に出し、天板から 600 の高さにする","「カメラの視野」をオンにすると、3 台がどこを見ているかがわかる"]},{"title":"おもちゃを置いて完成","view":"iso","text":"まな板・フライパン・電子レンジ・調味料・皿を置いて完成。キッチンの前の縁を机の前の縁にそろえる。","tips":["まな板やフライパンの位置は、カメラのゾーン（キャリブレーション）と合わせる"]}],"cams":[{"name":"中央","pos":[570.0,510.0,805.0],"corners":[[1000.9,460.1,150.0],[139.1,460.1,150.0],[-68.0,-209.0,150.0],[1208.0,-209.0,150.0]]},{"name":"左","pos":[-60.0,240.0,750.0],"corners":[[108.1,506.5,150.0],[32.4,-61.2,150.0],[439.6,-211.0,150.0],[540.3,544.3,150.0]]},{"name":"右","pos":[1110.0,240.0,750.0],"corners":[[1092.1,-46.5,150.0],[1012.6,510.0,150.0],[630.4,520.5,150.0],[728.1,-163.6,150.0]]}]};
+  const $ = (id) => document.getElementById(id);
+
+  if (!DATA || !window.THREE || !THREE.OrbitControls || !THREE.CSS2DRenderer || !THREE.RoomEnvironment || !THREE.RoundedBoxGeometry) {
+    $("step-title").textContent = "3D を読み込めませんでした";
+    $("step-text").textContent = "インターネットにつながっているか確かめて、ページを読み込み直してください。";
+    return;
+  }
+
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const view = $("viewport");
+  const dims = DATA.dims;
+  const W = dims.W, DEP = dims.D;
+  $("spec").textContent = `本体 W${W} × D${DEP} × H${dims.H}（机の上から）・ モニター込みの奥行き ${dims.depth_total} ・ 天板は床から ${dims.counter} ・ 単位 mm`;
+
+  // 設計図の座標（x 右 / y 奥 / z 上）→ three.js（x 右 / y 上 / z 手前）
+  const v3 = (p) => new THREE.Vector3(p[0], p[2], -p[1]);
+  const UP = new THREE.Vector3(0, 1, 0);
+
+  // ---------- レンダラーと光 ----------
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.toneMapping = THREE.NoToneMapping;   // 色を指定どおりに出す（明るすぎて白く飛ばないように）
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  view.appendChild(renderer.domElement);
+  const labeler = new THREE.CSS2DRenderer();
+  labeler.domElement.className = "labels";
+  view.appendChild(labeler.domElement);
+
+  const scene = new THREE.Scene();
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new THREE.RoomEnvironment(), 0.04).texture;
+
+  const camera = new THREE.PerspectiveCamera(35, 1, 10, 30000);
+  const target0 = new THREE.Vector3(W / 2, 420, -DEP / 2);
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.minDistance = 300;
+  controls.maxDistance = 7000;
+  controls.target.copy(target0);
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x9aa59f, 0.15));
+  const sun = new THREE.DirectionalLight(0xfff3e4, 0.8);
+  sun.position.set(W / 2 - 900, 2200, 1500);
+  sun.target.position.copy(target0);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -1600, right: 1600, top: 1600, bottom: -1600, near: 200, far: 8000 });
+  sun.shadow.bias = -0.0004;
+  sun.shadow.radius = 3;
+  scene.add(sun, sun.target);
+
+  // ---------- 材料 ----------
+  const lin = (hex) => new THREE.Color(hex).convertSRGBToLinear();
+  const ENV = 0.35;   // 部屋の光の映り込みの強さ
+  const std = (hex, opt) => new THREE.MeshStandardMaterial(Object.assign({ color: lin(hex), roughness: 0.8, metalness: 0, envMapIntensity: ENV }, opt || {}));
+  const maxAniso = renderer.capabilities.getMaxAnisotropy();
+  function canvasTex(w, h, draw, repeat) {
+    const c = document.createElement("canvas");
+    c.width = w;
+    c.height = h;
+    draw(c.getContext("2d"), w, h);
+    const t = new THREE.CanvasTexture(c);
+    t.encoding = THREE.sRGBEncoding;
+    t.anisotropy = maxAniso;
+    if (repeat) t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    return t;
+  }
+  function rng(seed) {
+    let s = seed;
+    return () => (s = (s * 16807) % 2147483647) / 2147483647;
+  }
+
+  // シナ合板の表面（420mm 四方でくり返す木目）
+  const grainTex = canvasTex(1024, 1024, (g, w, h) => {
+    g.fillStyle = "#e0c597";
+    g.fillRect(0, 0, w, h);
+    const r = rng(11);
+    for (let i = 0; i < 18; i++) {
+      const y = r() * h, bh = 20 + r() * 80;
+      g.fillStyle = `rgba(${r() < 0.5 ? "190,150,95" : "240,220,185"}, ${0.12 + r() * 0.14})`;
+      for (const oy of [-h, 0, h]) g.fillRect(0, y + oy, w, bh);
+    }
+    for (let i = 0; i < 170; i++) {
+      const y = r() * h, amp = 3 + r() * 14, per = w / (1 + Math.floor(r() * 3)), ph = r() * Math.PI * 2;
+      g.strokeStyle = `rgba(125, 85, 40, ${0.07 + r() * 0.16})`;
+      g.lineWidth = 0.6 + r() * 1.8;
+      for (const oy of [-h, 0, h]) {
+        g.beginPath();
+        for (let x = 0; x <= w; x += 8) {
+          const yy = y + oy + Math.sin((x / per) * Math.PI * 2 + ph) * amp;
+          if (x === 0) g.moveTo(x, yy); else g.lineTo(x, yy);
+        }
+        g.stroke();
+      }
+    }
+  }, true);
+
+  // 合板の切り口（厚さ 15mm に 7 層）
+  const plyTex = canvasTex(32, 140, (g, w, h) => {
+    const n = 7;
+    for (let i = 0; i < n; i++) {
+      g.fillStyle = i % 2 ? "#bf9f70" : "#e6d1a8";
+      g.fillRect(0, Math.floor((i * h) / n), w, Math.ceil(h / n) + 1);
+    }
+    g.fillStyle = "rgba(110, 80, 45, 0.35)";
+    for (let i = 1; i < n; i++) g.fillRect(0, Math.round((i * h) / n) - 1, w, 1);
+  }, true);
+
+  // 前板の表（ミントグリーンにつまみの目盛り）
+  const front = DATA.front;
+  const frontTex = canvasTex(Math.round(front.w * 2), Math.round(front.h * 2), (g, w, h) => {
+    const s = 2;
+    g.fillStyle = "#96bda9";
+    g.fillRect(0, 0, w, h);
+    g.strokeStyle = "#1f3a31";
+    g.fillStyle = "#1f3a31";
+    g.lineWidth = 4;
+    g.font = `bold ${13 * s}px "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic", sans-serif`;
+    g.textAlign = "center";
+    g.textBaseline = "middle";
+    const marks = [["切", -135], ["弱", -45], ["中", 45], ["強", 135]];
+    for (const x of front.knobs) {
+      const cx = x * s, cy = h / 2;
+      for (const [t, deg] of marks) {
+        const a = ((deg - 90) * Math.PI) / 180;
+        g.beginPath();
+        g.moveTo(cx + Math.cos(a) * 29 * s, cy + Math.sin(a) * 29 * s);
+        g.lineTo(cx + Math.cos(a) * 34 * s, cy + Math.sin(a) * 34 * s);
+        g.stroke();
+        g.fillText(t, cx + Math.cos(a) * 45 * s, cy + Math.sin(a) * 45 * s);
+      }
+    }
+  });
+
+  // 画面に映すもの（本物のキッチンのイメージ）
+  const screenTex = canvasTex(1024, 576, (g) => {
+    const wall = g.createLinearGradient(0, 0, 0, 576);
+    wall.addColorStop(0, "#f4e6cf");
+    wall.addColorStop(1, "#cfa877");
+    g.fillStyle = wall;
+    g.fillRect(0, 0, 1024, 576);
+    g.fillStyle = "#e9dcc6";
+    g.fillRect(60, 110, 250, 150);
+    g.fillStyle = "#b9d4c6";
+    g.fillRect(74, 124, 222, 122);
+    const counter = g.createLinearGradient(0, 390, 0, 576);
+    counter.addColorStop(0, "#9a6a3c");
+    counter.addColorStop(1, "#6f4726");
+    g.fillStyle = counter;
+    g.fillRect(0, 390, 1024, 186);
+    g.fillStyle = "#f3e2c0";
+    g.fillRect(120, 356, 330, 46);
+    g.fillStyle = "#f07f22";
+    g.beginPath();
+    g.ellipse(285, 350, 118, 24, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "#2b2b2b";
+    g.beginPath();
+    g.ellipse(740, 380, 150, 34, 0, 0, Math.PI * 2);
+    g.fill();
+    g.fillStyle = "rgba(0,0,0,0.5)";
+    g.fillRect(0, 0, 1024, 70);
+    g.fillStyle = "#fff";
+    g.font = "bold 32px sans-serif";
+    g.fillText("画面：本物のキッチン（Unity）", 28, 47);
+  });
+
+  // 床（ふちが背景に溶けるように、真ん中だけ見える）
+  const floorAlpha = canvasTex(256, 256, (g, w, h) => {
+    const r = g.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+    r.addColorStop(0, "#ffffff");
+    r.addColorStop(0.55, "#ffffff");
+    r.addColorStop(1, "#000000");
+    g.fillStyle = r;
+    g.fillRect(0, 0, w, h);
+  });
+  floorAlpha.encoding = THREE.LinearEncoding;
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000),
+    new THREE.MeshStandardMaterial({ color: lin(0xd6ddd9), roughness: 0.95, alphaMap: floorAlpha, transparent: true, depthWrite: false }));
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.set(W / 2, -dims.desk_h, -DEP / 2);
+  floor.receiveShadow = true;
+  scene.add(floor);
+  const shadowFloor = new THREE.Mesh(new THREE.PlaneGeometry(8000, 8000), new THREE.ShadowMaterial({ opacity: 0.14 }));
+  shadowFloor.rotation.x = -Math.PI / 2;
+  shadowFloor.position.set(W / 2, -0.6, -DEP / 2);
+  shadowFloor.receiveShadow = true;
+  scene.add(shadowFloor);
+
+  // ---------- 形を作る ----------
+  const woodRnd = rng(97);
+  function plyMesh(sx, sy, sz) {
+    const geom = new THREE.BoxGeometry(sx, sy, sz);
+    const size = [sx, sy, sz];
+    const thin = size.indexOf(Math.min(sx, sy, sz));      // 合板の厚さの向き
+    const faceUV = [[sz, sy], [sz, sy], [sx, sz], [sx, sz], [sx, sy], [sx, sy]];
+    const faceAxis = [0, 0, 1, 1, 2, 2];
+    const uv = geom.attributes.uv;
+    const ou = woodRnd(), ov = woodRnd();
+    const face = std(0xffffff, { map: grainTex, roughness: 0.72 });
+    const edge = std(0xffffff, { map: plyTex, roughness: 0.85 });
+    const mats = [];
+    for (let f = 0; f < 6; f++) {
+      const [uL, vL] = faceUV[f];
+      const isFace = faceAxis[f] === thin;
+      for (let k = 0; k < 4; k++) {
+        const i = f * 4 + k, u = uv.getX(i), v = uv.getY(i);
+        if (isFace) {
+          if (uL >= vL) uv.setXY(i, (u * uL) / 420 + ou, (v * vL) / 420 + ov);
+          else uv.setXY(i, (v * vL) / 420 + ou, (u * uL) / 420 + ov);
+        } else if (Math.abs(uL - size[thin]) < 0.01) {
+          uv.setXY(i, (v * vL) / 200, u);
+        } else {
+          uv.setXY(i, (u * uL) / 200, v);
+        }
+      }
+      mats.push(isFace ? face : edge);
+    }
+    uv.needsUpdate = true;
+    return new THREE.Mesh(geom, mats);
+  }
+  function paintMesh(sx, sy, sz, mat, frontMap) {
+    const geom = new THREE.BoxGeometry(sx, sy, sz);
+    if (!frontMap) return new THREE.Mesh(geom, mat);
+    const f = mat.clone();
+    f.color = new THREE.Color(0xffffff);
+    f.map = frontMap;
+    return new THREE.Mesh(geom, [mat, mat, mat, mat, f, mat]);
+  }
+  function roundMesh(sx, sy, sz, r, mat) {
+    const rr = Math.max(0.5, Math.min(r, sx / 2 - 0.5, sy / 2 - 0.5, sz / 2 - 0.5));
+    return new THREE.Mesh(new THREE.RoundedBoxGeometry(sx, sy, sz, 4, rr), mat);
+  }
+  function rodMesh(a, b, r, mat) {
+    const d = new THREE.Vector3().subVectors(b, a);
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(r, r, d.length(), 24), mat);
+    m.position.addVectors(a, b).multiplyScalar(0.5);
+    m.quaternion.setFromUnitVectors(UP, d.normalize());
+    return m;
+  }
+  const boxCenter = (b) => new THREE.Vector3((b[0] + b[3]) / 2, (b[2] + b[5]) / 2, -(b[1] + b[4]) / 2);
+  const boxSize = (b) => [b[3] - b[0], b[5] - b[2], b[4] - b[1]];
+
+  const KIND = {
+    mint: () => std(0x96bda9, { roughness: 0.6 }),
+    stove: () => std(0x5c6260, { roughness: 0.35, metalness: 0.55 }),
+    metal: () => std(0xaab1b4, { roughness: 0.4, metalness: 0.6 }),
+    monitor: () => std(0x17181a, { roughness: 0.4 }),
+    desk: () => std(0xf2f3f1, { roughness: 0.6 }),
+    leg: () => std(0xb9bfbc, { roughness: 0.4, metalness: 0.5 }),
+    board: () => std(0xf0d9ad, { roughness: 0.65 }),
+    arm: () => std(0xe7e9e8, { roughness: 0.35, metalness: 0.15 }),
+    clip: () => std(0x2a2c2e, { roughness: 0.5 }),
+    pcb: () => std(0x1f5f8f, { roughness: 0.45 }),
+    wire: () => std(0xe0782a, { roughness: 0.5 }),
+    usb: () => std(0x2b2d30, { roughness: 0.55 }),
+  };
+  const kindMat = (k) => (KIND[k] || (() => std(0xcccccc)))();
+
+  function knobShape(it) {
+    const g = new THREE.Group();
+    const wood = std(0xc9a26b, { roughness: 0.55 });
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(it.r, it.r * 1.06, it.h, 48), wood);
+    body.rotation.x = Math.PI / 2;
+    g.add(body);
+    const ptr = new THREE.Mesh(new THREE.BoxGeometry(3.5, it.r * 0.85, 2), std(0x3a2a1a));
+    ptr.position.set(0, it.r * 0.42, it.h / 2 + 1);
+    g.add(ptr);
+    g.rotation.z = (135 * Math.PI) / 180;   // 「切」の位置を指す
+    return g;
+  }
+  function burnerShape(it) {
+    const g = new THREE.Group();
+    const iron = std(0x2b2c2c, { roughness: 0.6, metalness: 0.4 });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(it.r * 0.62, 5, 12, 48), iron);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 5;
+    g.add(ring);
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(it.r * 0.3, it.r * 0.34, 8, 32), iron);
+    cap.position.y = 4;
+    g.add(cap);
+    for (let i = 0; i < 4; i++) {
+      const a = (i * Math.PI) / 2 + Math.PI / 4;
+      const p = new THREE.Mesh(new THREE.BoxGeometry(it.r * 0.55, 6, 7), iron);
+      p.position.set(Math.cos(a) * it.r * 0.8, 11, Math.sin(a) * it.r * 0.8);
+      p.rotation.y = -a;
+      g.add(p);
+    }
+    return g;
+  }
+  function panShape(it) {
+    const g = new THREE.Group();
+    const r = it.r;
+    const prof = [[0, 0], [r - 6, 0], [r - 1, 2], [r + 4, it.h - 2], [r + 6, it.h]].map((p) => new THREE.Vector2(p[0], p[1]));
+    g.add(new THREE.Mesh(new THREE.LatheGeometry(prof, 64), std(0x2a2c2d, { roughness: 0.45, metalness: 0.35, side: THREE.DoubleSide })));
+    const dir = new THREE.Vector3(it.handle[0], 0, -it.handle[1]).normalize();
+    const a = dir.clone().multiplyScalar(r + 3).setY(it.h - 6);
+    const b = a.clone().add(dir.clone().multiplyScalar(45)).setY(it.h - 1);
+    const c = b.clone().add(dir.clone().multiplyScalar(115)).setY(it.h + 8);
+    g.add(rodMesh(a, b, 5, std(0x80868a, { metalness: 0.6, roughness: 0.35 })));
+    g.add(rodMesh(b, c, 10, std(0x8a5a33, { roughness: 0.6 })));
+    return g;
+  }
+  function carrotShape(it) {
+    const g = new THREE.Group();
+    const orange = std(0xf07f22, { roughness: 0.55 });
+    const L1 = it.len * 0.47, L2 = it.len * 0.53 - it.gap;
+    const a = new THREE.Mesh(new THREE.CylinderGeometry(it.r, it.r * 0.78, L1, 32), orange);
+    a.rotation.z = Math.PI / 2;
+    a.position.x = -it.len / 2 + L1 / 2;
+    g.add(a);
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(it.r * 0.74, it.r * 0.16, L2, 32), orange);
+    b.rotation.z = Math.PI / 2;
+    b.position.x = -it.len / 2 + L1 + it.gap + L2 / 2;
+    g.add(b);
+    const leaf = std(0x3f9a4c, { roughness: 0.7 });
+    for (let i = 0; i < 3; i++) {
+      const l = new THREE.Mesh(new THREE.ConeGeometry(7, 42, 12), leaf);
+      l.rotation.z = Math.PI / 2 + (i - 1) * 0.35;
+      l.position.set(-it.len / 2 - 17, 4 + (i - 1) * 6, (i - 1) * 7);
+      g.add(l);
+    }
+    return g;
+  }
+  function microwaveShape(it) {
+    const [w, h, d] = boxSize(it.box);
+    const g = new THREE.Group();
+    g.add(roundMesh(w, h, d, 12, std(0x93bba7, { roughness: 0.55 })));
+    const z = d / 2;
+    const door = new THREE.Mesh(new THREE.BoxGeometry(w * 0.6, h * 0.66, 3), std(0x1d2724, { roughness: 0.15, metalness: 0.1 }));
+    door.position.set(-w / 2 + 16 + w * 0.3, 0, z + 1);
+    g.add(door);
+    const panel = new THREE.Mesh(new THREE.BoxGeometry(w * 0.24, h * 0.78, 3), std(0xeef2ee, { roughness: 0.6 }));
+    panel.position.set(w / 2 - 14 - w * 0.12, 0, z + 1);
+    g.add(panel);
+    const disp = new THREE.Mesh(new THREE.BoxGeometry(w * 0.16, 14, 2), std(0x24302c, { roughness: 0.2 }));
+    disp.position.set(panel.position.x, h * 0.25, z + 3);
+    g.add(disp);
+    for (let i = 0; i < 3; i++) {
+      const btn = new THREE.Mesh(new THREE.CylinderGeometry(7, 7, 4, 20), std(0xc9a26b, { roughness: 0.5 }));
+      btn.rotation.x = Math.PI / 2;
+      btn.position.set(panel.position.x, h * 0.04 - i * 24, z + 4);
+      g.add(btn);
+    }
+    const handle = new THREE.Mesh(new THREE.BoxGeometry(8, h * 0.5, 10), std(0xeef2ee, { roughness: 0.5 }));
+    handle.position.set(door.position.x + w * 0.3 + 4, 0, z + 6);
+    g.add(handle);
+    return g;
+  }
+  function bottleShape(it) {
+    const g = new THREE.Group();
+    const bh = it.h - 22;
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(it.r, it.r, bh, 32), std(0xf3f3f0, { roughness: 0.3 }));
+    body.position.y = bh / 2;
+    g.add(body);
+    const caps = [0xc0392b, 0xd39b2f, 0x7a5230];
+    const cap = new THREE.Mesh(new THREE.CylinderGeometry(it.r + 1, it.r + 1, 22, 32), std(caps[it.cap % 3], { roughness: 0.5 }));
+    cap.position.y = bh + 11;
+    g.add(cap);
+    return g;
+  }
+  function plateShape(it) {
+    const g = new THREE.Group();
+    const mat = std(0xfafaf7, { roughness: 0.3, side: THREE.DoubleSide });
+    // 皿の底は天板から 3mm 浮かせる（天板と同じ高さだと 2 つの面がちらついて模様になる）。下に高台（輪）を付ける
+    const prof = [[0, 3], [it.r - 16, 3], [it.r - 8, 6], [it.r, 13], [it.r + 1, 14]].map((p) => new THREE.Vector2(p[0], p[1]));
+    g.add(new THREE.Mesh(new THREE.LatheGeometry(prof, 64), mat));
+    const foot = new THREE.Mesh(new THREE.CylinderGeometry(it.r - 24, it.r - 22, 3, 48, 1, true), mat);
+    foot.position.y = 1.5;
+    g.add(foot);
+    return g;
+  }
+  function camShape(it, center) {
+    const [w, h, d] = it.body;
+    const dark = it.tone === "dark";
+    const head = new THREE.Group();
+    const body = roundMesh(w, h, d, Math.min(w, h, d) * 0.3, std(dark ? 0x2a2c2e : 0xf2f1ec, { roughness: 0.45 }));
+    body.position.z = -d / 2;
+    head.add(body);
+    if (!dark) {
+      const face = new THREE.Mesh(new THREE.BoxGeometry(w * 0.9, h * 0.78, 2), std(0x1e2022, { roughness: 0.3 }));
+      face.position.z = 0.6;
+      head.add(face);
+    }
+    const ring = new THREE.Mesh(new THREE.CylinderGeometry(it.lens + 3, it.lens + 3, 3, 32), std(0x3a3c3e, { metalness: 0.5, roughness: 0.3 }));
+    ring.rotation.x = Math.PI / 2;
+    ring.position.z = 1.6;
+    head.add(ring);
+    const glass = new THREE.Mesh(new THREE.CylinderGeometry(it.lens, it.lens, 2, 32), std(0x0b1016, { roughness: 0.05, metalness: 0.2 }));
+    glass.rotation.x = Math.PI / 2;
+    glass.position.z = 3.2;
+    head.add(glass);
+    const m4 = new THREE.Matrix4().lookAt(v3(it.aim), center, UP);   // +z をねらう点へ向ける
+    head.quaternion.setFromRotationMatrix(m4);
+    return head;
+  }
+
+  // 1 つの部材 → 位置（中心）と中身
+  function build(it) {
+    const sh = it.shape;
+    if (sh === "box") {
+      const center = boxCenter(it.box);
+      const [sx, sy, sz] = boxSize(it.box);
+      let mesh;
+      if (it.kind === "ply") mesh = plyMesh(sx, sy, sz);
+      else if (it.round) mesh = roundMesh(sx, sy, sz, it.round, kindMat(it.kind));
+      else mesh = paintMesh(sx, sy, sz, kindMat(it.kind), it.face === "knobs" ? frontTex : null);
+      return { center, content: mesh, edgesOf: it.round ? null : mesh.geometry, size: [sx, sy, sz] };
+    }
+    if (sh === "screen") {
+      const b = it.box;
+      const [sx, sy] = boxSize(b);
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(sx, sy), new THREE.MeshBasicMaterial({ map: screenTex, toneMapped: false }));
+      return { center: new THREE.Vector3((b[0] + b[3]) / 2, (b[2] + b[5]) / 2, -b[1]), content: mesh };
+    }
+    if (sh === "rod") {
+      const a = v3(it.a), b = v3(it.b);
+      const center = a.clone().add(b).multiplyScalar(0.5);
+      return { center, content: rodMesh(a.sub(center), b.sub(center), it.r, kindMat(it.kind)) };
+    }
+    if (sh === "ball") return { center: v3(it.c), content: new THREE.Mesh(new THREE.SphereGeometry(it.r, 24, 16), kindMat(it.kind)) };
+    if (sh === "microwave") return { center: boxCenter(it.box), content: microwaveShape(it), size: boxSize(it.box) };
+    const center = v3(it.c);
+    const make = { knob: knobShape, burner: burnerShape, pan: panShape, carrot: carrotShape, bottle: bottleShape, plate: plateShape }[sh];
+    if (make) return { center, content: make(it) };
+    if (sh === "cam") return { center, content: camShape(it, center) };
+    return { center, content: new THREE.Mesh(new THREE.BoxGeometry(20, 20, 20), std(0xff00ff)) };
+  }
+
+  // ---------- 部材を並べる ----------
+  let accentHex = 0xc8452c;
+  const edgeNormal = new THREE.LineBasicMaterial({ color: lin(0x5a4630), transparent: true, opacity: 0.16 });
+  const edgeNew = new THREE.LineBasicMaterial({ color: lin(accentHex) });
+  const edgePick = new THREE.LineBasicMaterial({ color: lin(0x2f6fb8) });
+  const ghostMat = new THREE.LineBasicMaterial({ color: lin(0x7c8a84), transparent: true, opacity: 0.22, depthWrite: false });
+
+  const objs = [];
+  for (const it of DATA.items) {
+    const { center, content, edgesOf, size } = build(it);
+    const group = new THREE.Group();
+    group.add(content);
+    const meshes = [];
+    content.traverse((m) => {
+      if (m.isMesh) {
+        m.castShadow = it.shape !== "screen" && it.kind !== "desk";
+        m.receiveShadow = it.shape !== "screen";
+        meshes.push(m);
+      }
+    });
+    let edges = null;
+    if (edgesOf) {
+      edges = new THREE.LineSegments(new THREE.EdgesGeometry(edgesOf), edgeNormal);
+      group.add(edges);
+    }
+    const bb = new THREE.Box3().setFromObject(content);
+    group.position.copy(center);
+    scene.add(group);
+
+    let ghost = null;
+    if (it.step > 0 && size) {
+      ghost = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.BoxGeometry(size[0], size[1], size[2])), ghostMat);
+      ghost.position.copy(center);
+      ghost.visible = false;
+      scene.add(ghost);
+    }
+
+    let label = null;
+    if (it.no) {
+      const el = document.createElement("div");
+      el.className = "label";
+      el.textContent = it.no;
+      label = new THREE.CSS2DObject(el);
+      label.position.set(0, bb.max.y + 22, 0);
+      label.visible = false;
+      group.add(label);
+    }
+
+    const o = {
+      it, group, meshes, edges, ghost, label,
+      home: center.clone(),
+      target: center.clone(),
+      from: new THREE.Vector3(it.from[0], it.from[2], -it.from[1]),
+      ex: it.ex ? new THREE.Vector3(it.ex[0], it.ex[2], -it.ex[1]) : null,
+    };
+    for (const m of meshes) m.userData.obj = o;
+    objs.push(o);
+  }
+
+  function setGlow(o, on) {
+    for (const m of o.meshes) {
+      const mats = Array.isArray(m.material) ? m.material : [m.material];
+      for (const mt of mats) {
+        if (!mt.emissive) continue;
+        mt.emissive.copy(on ? lin(accentHex) : new THREE.Color(0x000000));
+        mt.emissiveIntensity = on ? 0.18 : 0;
+      }
+    }
+  }
+
+  // ---------- カメラの視野 ----------
+  const frustums = new THREE.Group();
+  frustums.visible = false;
+  scene.add(frustums);
+  function buildFrustums() {
+    while (frustums.children.length) frustums.remove(frustums.children[0]);
+    DATA.cams.forEach((c, i) => {
+      const p = v3(c.pos);
+      const cs = c.corners.map(v3);
+      const col = lin(i === 0 ? accentHex : 0x2f7d9a);
+      const pts = [];
+      cs.forEach((q, j) => pts.push(p, q, q, cs[(j + 1) % 4]));
+      frustums.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(pts),
+        new THREE.LineBasicMaterial({ color: col, transparent: true, opacity: 0.9 })));
+      const face = new THREE.BufferGeometry().setFromPoints([p, cs[0], cs[1], p, cs[1], cs[2], p, cs[2], cs[3], p, cs[3], cs[0]]);
+      frustums.add(new THREE.Mesh(face, new THREE.MeshBasicMaterial({
+        color: col, transparent: true, opacity: 0.08, side: THREE.DoubleSide, depthWrite: false,
+      })));
+    });
+  }
+
+  // ---------- 矢印（入れる向き）----------
+  const arrows = new THREE.Group();
+  scene.add(arrows);
+  function updateArrows() {
+    while (arrows.children.length) arrows.remove(arrows.children[0]);
+    if (step === 0) return;
+    for (const o of objs) {
+      if (o.it.step !== step || o.it.noArrow || !o.group.visible) continue;
+      const len = o.from.length();
+      if (len < 1) continue;
+      const dir = o.from.clone().multiplyScalar(-1).normalize();
+      const start = o.target.clone().add(o.from.clone().multiplyScalar(1.2));
+      arrows.add(new THREE.ArrowHelper(dir, start, len * 0.95, lin(accentHex), 42, 24));
+    }
+  }
+
+  // ---------- 工程 ----------
+  const steps = DATA.steps;
+  const LAST = steps.length - 1;
+  let step = 0;
+  let picked = null;
+  const tExplode = $("t-explode"), tLabels = $("t-labels"), tGhost = $("t-ghost"), tCams = $("t-cams"), tDesk = $("t-desk");
+  const center0 = new THREE.Vector3(W / 2, 380, -DEP / 2);
+
+  function explodeOffset(o) {
+    if (o.ex) return o.ex.clone();   // 部材ごとに決めた向き（底板は動かさず、上の物ほど上へ）
+    const d = o.home.clone().sub(center0);
+    d.y *= 0.6;
+    if (d.lengthSq() < 1) d.set(0, 1, 0);
+    return d.normalize().multiplyScalar(230);
+  }
+
+  function applyState(animate) {
+    const all = step === 0;
+    for (const o of objs) {
+      const s = o.it.step;
+      const visible = s < 0 ? tDesk.checked : (all || s <= step);
+      const isNew = !all && s === step;
+      o.group.visible = visible;
+      if (o.ghost) o.ghost.visible = !visible && tGhost.checked;
+      if (o.edges) o.edges.material = o === picked ? edgePick : (isNew ? edgeNew : edgeNormal);
+      setGlow(o, isNew);
+      if (o.label) {
+        o.label.visible = visible && (isNew || tLabels.checked);
+        o.label.element.classList.toggle("new", isNew);
+      }
+      o.target.copy(o.home);
+      if (tExplode.checked && visible && s > 0) o.target.add(explodeOffset(o));
+      if (!animate || reduceMotion) o.group.position.copy(o.target);
+      else if (isNew) o.group.position.copy(o.target).add(o.from);
+    }
+    floor.visible = tDesk.checked;
+    shadowFloor.visible = !tDesk.checked;
+    frustums.visible = tCams.checked;
+    $("legend-cams").hidden = !tCams.checked;
+    updateArrows();
+  }
+
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text !== undefined) e.textContent = text;
+    return e;
+  }
+
+  function updatePanel() {
+    const st = steps[step];
+    $("step-count").textContent = step === 0 ? `完成形 ・ 全 ${LAST} 工程` : `工程 ${step} / ${LAST}`;
+    $("step-title").textContent = st.title;
+    $("step-text").textContent = st.text;
+    $("step-tips").replaceChildren(...st.tips.map((t) => el("li", "", t)));
+    $("parts-heading").textContent = step === 0 ? "部材の一覧" : "この工程で付ける部材";
+
+    const groups = new Map();
+    for (const o of objs) {
+      const it = o.it;
+      if (it.step < 0 || it.sub) continue;
+      if (step !== 0 && it.step !== step) continue;
+      if (step === 0 && !it.no) continue;
+      const key = it.no || it.name;
+      const g = groups.get(key) || { no: it.no, name: it.name, dims: it.dims || "", n: 0 };
+      g.n += 1;
+      groups.set(key, g);
+    }
+    const rows = [...groups.values()].map((g) => {
+      const li = el("li");
+      li.append(el("span", "no", g.no || "・"), el("span", "nm", g.name + (g.n > 1 ? ` ×${g.n}` : "")), el("span", "dims", g.dims));
+      return li;
+    });
+    $("step-parts").replaceChildren(...rows);
+
+    $("prev").disabled = step === 0;
+    $("next").disabled = step === LAST;
+    $("next").textContent = step === 0 ? "組み立てを始める ▶" : (step === LAST ? "完成" : "次へ ▶");
+    document.querySelectorAll("#step-list button").forEach((b, i) => {
+      if (i === step) b.setAttribute("aria-current", "step"); else b.removeAttribute("aria-current");
+      b.classList.toggle("done", step > 0 && i > 0 && i < step);
+    });
+  }
+
+  function pick(o) {
+    const prev = picked;
+    picked = o && o.it.step >= 0 ? o : null;
+    if (prev && prev.edges) prev.edges.material = (prev.it.step === step && step !== 0) ? edgeNew : edgeNormal;
+    const box = $("picked");
+    if (!picked) { box.hidden = true; return; }
+    if (picked.edges) picked.edges.material = edgePick;
+    const it = picked.it;
+    const top = el("div", "top");
+    top.append(el("span", "no", it.no || "・"), el("span", "nm", it.name));
+    const card = [top, el("p", "dims", it.dims || "")];
+    if (it.where) card.push(el("p", "", it.where));
+    if (it.step > 0) card.push(el("p", "sub", `工程 ${it.step}「${steps[it.step].title}」で付ける`));
+    $("picked-body").replaceChildren(...card);
+    box.hidden = false;
+  }
+
+  // ---------- 見る向き ----------
+  const VIEWS = {
+    iso: [-1250, 1050, 1750],
+    front: [0, 280, 2500],
+    backiso: [1250, 1050, -1750],
+    side: [-2500, 320, 0],
+    top: [0, 2700, 30],
+  };
+  // 「分解」のときは部材が広がるので、少し引いて、広がった真ん中（上・奥）を見る
+  const EXPLODE_ZOOM = 1.3;
+  const EXPLODE_SHIFT = new THREE.Vector3(0, 130, -150);
+  let camAnim = null;
+  function moveCamera(p1, q1, instant, dur) {
+    if (instant || reduceMotion) {
+      camera.position.copy(p1);
+      controls.target.copy(q1);
+      camAnim = null;
+      return;
+    }
+    camAnim = { t0: performance.now(), dur, p0: camera.position.clone(), p1, q0: controls.target.clone(), q1 };
+  }
+  function goView(name, instant) {
+    const off = VIEWS[name] || VIEWS.iso;
+    const ex = tExplode.checked;
+    const tgt = ex ? target0.clone().add(EXPLODE_SHIFT) : target0.clone();
+    const to = tgt.clone().add(new THREE.Vector3(off[0], off[1], off[2]).multiplyScalar(ex ? EXPLODE_ZOOM : 1));
+    document.querySelectorAll("[data-view]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === name)));
+    moveCamera(to, tgt, instant, 750);
+  }
+  function reframeExplode() {   // 今の向きのまま、引く／寄る
+    const on = tExplode.checked;
+    const q0 = controls.target.clone();
+    const q1 = on ? q0.clone().add(EXPLODE_SHIFT) : q0.clone().sub(EXPLODE_SHIFT);
+    const p1 = q1.clone().add(camera.position.clone().sub(q0).multiplyScalar(on ? EXPLODE_ZOOM : 1 / EXPLODE_ZOOM));
+    moveCamera(p1, q1, false, 600);
+  }
+  function stepCamera(now) {
+    if (!camAnim) return;
+    const t = Math.min(1, (now - camAnim.t0) / camAnim.dur);
+    const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    camera.position.lerpVectors(camAnim.p0, camAnim.p1, e);
+    controls.target.lerpVectors(camAnim.q0, camAnim.q1, e);
+    if (t >= 1) camAnim = null;
+  }
+
+  function go(n, instant) {
+    step = Math.max(0, Math.min(LAST, n));
+    pick(null);
+    applyState(!instant);
+    updatePanel();
+    goView(steps[step].view, instant);
+    try { history.replaceState(null, "", "#step" + step); } catch (e) { /* 使えない環境では何もしない */ }
+  }
+
+  // ---------- 操作 ----------
+  steps.forEach((s, i) => {
+    const b = el("button");
+    b.type = "button";
+    b.append(el("span", "n", String(i)), el("span", "t", s.title));
+    b.addEventListener("click", () => go(i));
+    const li = el("li");
+    li.append(b);
+    $("step-list").append(li);
+  });
+  $("prev").addEventListener("click", () => go(step - 1));
+  $("next").addEventListener("click", () => go(step + 1));
+  document.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => goView(b.dataset.view)));
+  [tExplode, tLabels, tGhost, tCams, tDesk].forEach((t) => t.addEventListener("change", () => applyState(true)));
+  tExplode.addEventListener("change", reframeExplode);
+  document.addEventListener("keydown", (e) => {
+    if (e.target && ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
+    if (e.key === "ArrowRight") go(step + 1);
+    if (e.key === "ArrowLeft") go(step - 1);
+  });
+
+  const ray = new THREE.Raycaster();
+  const ndc = new THREE.Vector2();
+  let downAt = null;
+  renderer.domElement.addEventListener("pointerdown", (e) => { downAt = [e.clientX, e.clientY]; });
+  renderer.domElement.addEventListener("pointerup", (e) => {
+    if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 6) return;
+    const r = renderer.domElement.getBoundingClientRect();
+    ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    const targets = [];
+    for (const o of objs) if (o.group.visible && o.it.step >= 0) targets.push(...o.meshes);
+    const hits = ray.intersectObjects(targets, false);
+    pick(hits.length ? hits[0].object.userData.obj : null);
+  });
+
+  // ---------- テーマ ----------
+  function readTheme() {
+    const cs = getComputedStyle(document.documentElement);
+    const tok = (name, fb) => cs.getPropertyValue(name).trim() || fb;
+    scene.background = new THREE.Color(tok("--viewport", "#e3e9e5"));
+    floor.material.color = lin(tok("--floor", "#d6ddd9"));
+    accentHex = new THREE.Color(tok("--accent", "#c8452c")).getHex();
+    edgeNew.color = lin(accentHex);
+    edgePick.color = lin(new THREE.Color(tok("--pick", "#2f6fb8")).getHex());
+    buildFrustums();
+    applyState(false);
+  }
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", readTheme);
+  new MutationObserver(readTheme).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  // ---------- 大きさ・描画 ----------
+  function resize() {
+    const w = view.clientWidth, h = view.clientHeight;
+    if (!w || !h) return;
+    renderer.setSize(w, h);
+    labeler.setSize(w, h);
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(resize).observe(view);
+  resize();
+
+  let last = performance.now();
+  function tick(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    const k = reduceMotion ? 1 : 1 - Math.exp(-dt * 6.5);
+    for (const o of objs) if (o.group.visible) o.group.position.lerp(o.target, k);
+    stepCamera(now);
+    controls.update();
+    renderer.render(scene, camera);
+    labeler.render(scene, camera);
+    requestAnimationFrame(tick);
+  }
+
+  const m = /^#step(\d+)$/.exec(location.hash || "");
+  readTheme();
+  go(m ? Number(m[1]) : 0, true);
+  requestAnimationFrame(tick);
+})();
+</script>
