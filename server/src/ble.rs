@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use btleplug::api::{Central, Manager as _, Peripheral as _, ScanFilter};
 use btleplug::platform::{Manager, Peripheral, PeripheralId};
 use futures::StreamExt;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
 use uuid::Uuid;
 
@@ -21,7 +21,7 @@ pub const EVENT_UUID: Uuid = Uuid::from_u128(0x2a28760f_2c0e_4e00_b5cd_4ae7faa98
 /// 見つかったデバイスを確かめる間隔
 const SCAN_INTERVAL: Duration = Duration::from_secs(1);
 /// 電源が切れたデバイスにつなぎに行って待ち続けないため
-const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 /// 切断の通知が来ない OS があるので、つながっているかを自分でも確かめる間隔
 const ALIVE_CHECK: Duration = Duration::from_secs(1);
 
@@ -33,7 +33,8 @@ pub enum BleMessage {
     Line { name: String, line: String },
 }
 
-pub async fn run(tx: mpsc::Sender<BleMessage>) -> Result<()> {
+/// shutdown に true が来たら、つないでいるデバイスを切ってから終わる
+pub async fn run(tx: mpsc::Sender<BleMessage>, mut shutdown: watch::Receiver<bool>) -> Result<()> {
     let manager = Manager::new().await?;
     let adapter = manager
         .adapters()
@@ -48,7 +49,10 @@ pub async fn run(tx: mpsc::Sender<BleMessage>) -> Result<()> {
     let mut tasks: HashMap<PeripheralId, JoinHandle<()>> = HashMap::new();
     let mut tick = tokio::time::interval(SCAN_INTERVAL);
     loop {
-        tick.tick().await;
+        tokio::select! {
+            _ = tick.tick() => {}
+            _ = shutdown.changed() => break,
+        }
         for p in adapter.peripherals().await? {
             let id = p.id();
             if tasks.get(&id).is_some_and(|t| !t.is_finished()) {
@@ -62,6 +66,18 @@ pub async fn run(tx: mpsc::Sender<BleMessage>) -> Result<()> {
             tasks.insert(id, tokio::spawn(watch(p, name, tx.clone())));
         }
     }
+
+    // 切らずに終わると、デバイスは前の接続が続いていると思って広告を止めたままになり、
+    // 次に起動したサーバーがつなげるまで 10 秒以上かかる（2026-10-13 の実測）
+    for t in tasks.values() {
+        t.abort();
+    }
+    for p in adapter.peripherals().await? {
+        if p.is_connected().await.unwrap_or(false) {
+            let _ = p.disconnect().await;
+        }
+    }
+    Ok(())
 }
 
 async fn watch(p: Peripheral, name: String, tx: mpsc::Sender<BleMessage>) {
