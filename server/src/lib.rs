@@ -4,5 +4,6 @@
 pub mod ble;
 pub mod config;
 pub mod event;
+pub mod event_log;
 pub mod kitchen;
 pub mod line_buffer;
