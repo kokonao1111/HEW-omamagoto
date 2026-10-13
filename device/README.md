@@ -98,6 +98,16 @@ pio device monitor                  # 終了は Ctrl+C
 
 合わせた位置は本体に保存されるので、電源を切っても残る。
 
+## テスト
+
+判定のコードを変えたら、Mac 上のテストを実行する（実機なし）。
+
+```sh
+sh device/host_test/run.sh
+```
+
+実機での確かめ方と、これまでの結果は `docs/テスト記録.md` にまとめている。
+
 ## 元の UiFlow2 に戻す
 
 M5Burner で StickS3 用の UiFlow2 を書き込む。
