@@ -13,3 +13,6 @@ dataset/preview/
 device/.pio/
 device/backup/
 device/host_test/build/
+
+# Rust サーバーのビルド成果物
+server/target/
