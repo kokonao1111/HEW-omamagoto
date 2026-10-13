@@ -1,6 +1,6 @@
-// センサーデバイス共通ファームウェア（要件定義書 5.1〜5.2、5.4、6.2）
-// 今はサーバーが無いので、イベントは USB シリアルに 1 行 1 JSON で出す。
-//   pio device monitor で見られる。Wi-Fi・WebSocket での送信は次の段階で足す。
+// センサーデバイス共通ファームウェア（要件定義書 5.1〜5.2、5.4、6.2、6.6）
+// イベントは 1 行 1 JSON で、BLE（サーバーがつながっているとき）と USB シリアルの両方に出す。
+//   USB シリアルは pio device monitor で見られる。BLE は tools/ble_monitor.py で見られる。
 //
 // 画面：MAC アドレス（サーバーの設定で役割を決めるときに使う）、バッテリー、傾き、振った回数、つまみの角度と段階
 // ボタン A を押す：振った回数を 0 に戻す
@@ -11,6 +11,7 @@
 #include <Preferences.h>
 #include <esp_mac.h>
 
+#include "ble.h"
 #include "knob.h"
 #include "shake.h"
 
@@ -32,8 +33,11 @@ static void send(JsonDocument& doc) {
   doc["device"] = device_id;
   doc["ts"] = millis();
   doc["seq"] = ++seq;
-  serializeJson(doc, Serial);
+  char line[256];
+  size_t len = serializeJson(doc, line, sizeof(line));
+  Serial.write(line, len);
   Serial.println();
+  ble::send(line, len);
 }
 
 static void sendBattery() {
@@ -74,8 +78,15 @@ static void drawScreen() {
     d.printf("flat \n\n");
   }
   d.setTextSize(1);
-  d.setTextColor(TFT_YELLOW, TFT_BLACK);
-  d.printf("USB serial (no Wi-Fi)\n");
+  d.setTextColor(TFT_WHITE, TFT_BLACK);
+  d.printf("%s\n", ble::name());
+  if (ble::connected()) {
+    d.setTextColor(TFT_GREEN, TFT_BLACK);
+    d.printf("BLE connected \n");
+  } else {
+    d.setTextColor(TFT_YELLOW, TFT_BLACK);
+    d.printf("BLE waiting   \n");
+  }
   d.endWrite();
 }
 
@@ -91,6 +102,8 @@ void setup() {
 
   M5.Display.setRotation(0);  // 縦向き。USB が下
   M5.Display.fillScreen(TFT_BLACK);
+
+  ble::begin(device_id);
 
   prefs.begin("device");
   if (prefs.isKey("knob_zero")) knob.setZero(prefs.getFloat("knob_zero"));
