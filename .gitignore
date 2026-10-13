@@ -12,3 +12,4 @@ dataset/preview/
 # センサーデバイス：PlatformIO のビルド成果物と、書き換え前の Flash のバックアップ
 device/.pio/
 device/backup/
+device/host_test/build/
