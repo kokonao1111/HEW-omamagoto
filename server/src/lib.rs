@@ -1,0 +1,5 @@
+//! おままごとサーバーの部品。main.rs から使う
+//! 入り口（ble）は非同期、それ以外（イベントの型・設定・本体）は普通のコードで、cargo test で確かめる。
+
+pub mod ble;
+pub mod line_buffer;

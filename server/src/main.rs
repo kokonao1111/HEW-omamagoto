@@ -2,10 +2,7 @@
 //! 今は BLE で届いたイベントの JSON を表示するだけ。鍋の状態・工程・採点は次の段階で足す。
 //! 入り口（BLE）は非同期のタスクで動かし、ここにはチャンネルで 1 件ずつ届く。
 
-mod ble;
-mod line_buffer;
-
-use ble::BleMessage;
+use omamagoto_server::ble::{self, BleMessage};
 use tokio::sync::{mpsc, watch};
 
 #[tokio::main]
