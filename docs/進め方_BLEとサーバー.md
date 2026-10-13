@@ -40,6 +40,9 @@ ESP32（電子レンジ）──────────────────
   - `tools/ble_monitor.py` で、振る・回すと JSON が届く
   - 本体のリセット・Mac 側の切断のあと、自動でつながり直す
 - テスト：Mac 上のテスト（`device/host_test/run.sh`）、実機で `ble_monitor.py`
+- やったこと（2026-10-13）
+  - デバイスの BLE 送信と `tools/ble_monitor.py` を作り、Mac で受け取れた。振り 10 回 × 2 で 10 件ずつ、取りこぼし 0 件（`docs/テスト記録.md`）
+  - 残り：リセット後の再接続時間の確認
 
 ### ② Rust で BLE を受ける（`feature/server-ble`）
 
