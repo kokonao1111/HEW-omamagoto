@@ -56,6 +56,8 @@
   .card.dish { transition: opacity .35s, transform .35s, left .8s cubic-bezier(.5,0,.2,1), top .8s cubic-bezier(.5,0,.2,1); }
   .card.dish canvas { display: block; width: clamp(220px, 24vw, 380px); height: auto; margin: 10px auto 0; border-radius: 14px; }
   .card.dish.eat { left: 76%; top: 6%; transform: translateX(-50%) scale(0.82); }
+  body[data-view="guest"] .card.dish.eat { left: 79%; top: 10%; transform: translateX(-50%) scale(0.95); }
+  body[data-view="guest"] .card:not(.dish) { left: 21%; top: 12%; }
   .card.dish .wait { width: clamp(220px, 24vw, 380px); aspect-ratio: 4 / 3; margin: 10px auto 0; border-radius: 14px;
     background: linear-gradient(110deg, #efe3d3 30%, #f8efe4 50%, #efe3d3 70%) 0 0 / 200% 100%; animation: shimmer 1.2s linear infinite; }
   @keyframes shimmer { to { background-position: -200% 0; } }
@@ -137,6 +139,10 @@
     <button type="button" data-dish="undercooked">生焼け</button>
     <button type="button" data-dish="salty">しょっぱい</button>
   </div>
+  <div class="row" id="view-row">
+    <button type="button" id="open-guest">お客さんの画面を開く</button>
+    <button type="button" id="open-kitchen">キッチンの画面にする</button>
+  </div>
   <label><input type="checkbox" id="gen"> 料理の写真を画像生成で作る（サーバーの提供では自動でオン）</label>
   <label><input type="checkbox" id="mouse-knife"> マウスで包丁を動かす（クリックで振り下ろす）</label>
   <label><input type="checkbox" id="sound"> 音を出す</label>
@@ -179,6 +185,15 @@ const DISH_URL = params.get("dish") || (location.protocol.startsWith("http") ? n
 const DISH_WAIT = Number(params.get("dishwait")) || 45;   // 画像生成を待つ秒数。過ぎたら用意した写真を出す
 $("ws-url").textContent = WS_URL;
 if (params.get("panel") === "0") $("panel-toggle").hidden = true;
+// 画面の種類: kitchen = キッチンだけ / guest = 食べるお客さんだけ / all = 1 画面で全部（テスト用）
+const VIEW = ["kitchen", "guest"].includes(params.get("view")) ? params.get("view") : "all";
+document.body.dataset.view = VIEW;
+if (VIEW === "guest") $("panel-toggle").hidden = true;
+document.title = { kitchen: "キッチンの画面", guest: "お客さんの画面", all: "おままごとキッチン画面" }[VIEW];
+// 2 つの画面のやり取り（同じ PC・同じアドレスで開いた窓どうし）
+let bus = null;
+try { bus = new BroadcastChannel("omamagoto-screen"); } catch (e) { /* 使えない環境では 1 画面で使う */ }
+const D0 = new THREE.Vector3(6000, 0, 0);   // お客さんの席（キッチンから離れた所に置く）
 if (params.get("gen") === "1") $("gen").checked = true;
 
 // まな板座標（0〜1）→ 画面の位置。実物のキッチンと同じ配置（設計書の P と同じ数字）
@@ -216,14 +231,19 @@ scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
 scene.environmentIntensity = 0.5;
 
 const camera = new THREE.PerspectiveCamera(38, 16 / 9, 10, 9000);
-const CAM_POS = new THREE.Vector3(525, 640, 600);
-const CAM_LOOK = new THREE.Vector3(525, 130, -420);
+const CAM_POS = VIEW === "guest" ? D0.clone().add(new THREE.Vector3(0, 430, 820)) : new THREE.Vector3(525, 640, 600);
+const CAM_LOOK = VIEW === "guest" ? D0.clone().add(new THREE.Vector3(0, 170, -140)) : new THREE.Vector3(525, 130, -420);
 const camShake = new THREE.Vector3();
 
 // 窓からの光（左上の奥）と、部屋の明かり
 const sun = new THREE.DirectionalLight(0xfff1de, 2.6);
-sun.position.set(-500, 1500, 500);
-sun.target.position.set(560, 0, -330);
+if (VIEW === "guest") {
+  sun.position.copy(D0).add(new THREE.Vector3(-700, 1500, 700));
+  sun.target.position.copy(D0);
+} else {
+  sun.position.set(-500, 1500, 500);
+  sun.target.position.set(560, 0, -330);
+}
 sun.castShadow = true;
 sun.shadow.mapSize.set(4096, 4096);
 Object.assign(sun.shadow.camera, { left: -1100, right: 1100, top: 1100, bottom: -1100, near: 200, far: 4200 });
@@ -765,7 +785,8 @@ const decor = {};
 // 読めなかったときは、上の手描きの質感のまま動く
 const ASSETS = params.get("assets") || "assets/";
 const REAL = params.get("real") !== "0";
-const ROT = THREE.MathUtils.degToRad(Number(params.get("hdrirot") ?? 115));   // 受け渡し口の向こうに、丸いテーブルの席が見える向き
+// 受け渡し口の向こうに丸いテーブルの席が見える向き（キッチン）/ ソファの席が見える向き（お客さん）
+const ROT = THREE.MathUtils.degToRad(Number(params.get("hdrirot") ?? (VIEW === "guest" ? 25 : 115)));
 const texLoader2 = new THREE.TextureLoader();
 function loadTex(path, srgb, rep) {
   return new Promise((ok) => texLoader2.load(ASSETS + path, (tx) => {
@@ -851,6 +872,11 @@ async function loadReal() {
     Object.assign(boardMat, { map: bd, normalMap: bn, roughnessMap: brr, roughness: 1 });
     boardMat.color.set(0xf2e2c8);
     boardMat.needsUpdate = true;
+    const td2 = bd.clone(), tn2 = bn.clone(), tr2 = brr.clone();
+    for (const x of [td2, tn2, tr2]) { x.repeat.set(0.9, 0.9); x.needsUpdate = true; }
+    Object.assign(dining.tableMat, { map: td2, normalMap: tn2, roughnessMap: tr2, roughness: 0.8 });
+    dining.tableMat.color.set(0xb98a5e);
+    dining.tableMat.needsUpdate = true;
   }
   // 4. 観葉植物（手描きの鉢と差し替え）とくだもの
   const plant = await loadModel("models/potted_plant_02/potted_plant_02_1k.gltf");
@@ -1285,11 +1311,43 @@ const guest = { root: new THREE.Group(), faces: {}, shown: false };
   scene.add(shadowAll(g));
   guest.faces.normal.visible = true;
 }
+// お客さんの席: 丸いテーブルに座ったクマ。料理はキッチンの画面から届く
+const dining = { plate: null, tableMat: stdm({ color: 0x8a5a36, roughness: 0.5 }) };
+if (VIEW === "guest") {
+  const g = new THREE.Group();
+  g.position.copy(D0);
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(430, 430, 32, 72), dining.tableMat);
+  top.position.y = -16;
+  const edge = new THREE.Mesh(new THREE.TorusGeometry(430, 6, 10, 96), dining.tableMat);
+  edge.rotation.x = Math.PI / 2;
+  edge.position.y = -16;
+  const leg = new THREE.Mesh(new THREE.CylinderGeometry(38, 46, 700, 32), stdm({ color: 0x222222, roughness: 0.4, metalness: 0.6 }));
+  leg.position.y = -382;
+  const foot = new THREE.Mesh(new THREE.CylinderGeometry(220, 240, 18, 48), stdm({ color: 0x222222, roughness: 0.4, metalness: 0.6 }));
+  foot.position.y = -724;
+  g.add(top, edge, leg, foot);
+  const cloth = new THREE.Mesh(new RoundedBoxGeometry(420, 2, 300, 2, 1), stdm({ color: 0x5f7f68, roughness: 0.95 }));   // ランチョンマット
+
+  cloth.position.set(0, 0.5, 80);
+  g.add(cloth);
+  const dfloor = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), stdm({ color: 0x8a6a4c, roughness: 0.7 }));
+  dfloor.rotation.x = -Math.PI / 2;
+  dfloor.position.y = -733;
+  g.add(dfloor);
+  scene.add(shadowAll(g));
+  dining.plate = plate.clone(true);
+  dining.plate.position.copy(D0).add(new THREE.Vector3(-1400, 0, 80));
+  dining.plate.visible = false;
+  scene.add(dining.plate);
+  guest.root.position.copy(D0).add(new THREE.Vector3(0, 205, -240));
+  guest.shown = true;
+}
+if (VIEW === "kitchen") guest.root.visible = false;
 function setFace(name) {
   for (const [k, f] of Object.entries(guest.faces)) f.visible = k === name;
 }
 function showGuest(on, dur = 0.7) {
-  if (guest.shown === on) return;
+  if (VIEW !== "all" || guest.shown === on) return;
   guest.shown = on;
   const y0 = guest.root.position.y, y1 = on ? 205 : -460;
   tween(dur, (k) => (guest.root.position.y = THREE.MathUtils.lerp(y0, y1, on ? ease.back(k) : ease.in(k))));
@@ -1385,6 +1443,7 @@ function handle(m, fromServer = false) {
     if (lastSeq[m.device] !== undefined && m.seq <= lastSeq[m.device]) return;
     lastSeq[m.device] = m.seq;
   }
+  if (VIEW === "guest" && m.event !== "reset") return;
   switch (m.event) {
     case "position": onPosition(m); break;
     case "swing": onSwing(); break;
@@ -1695,38 +1754,104 @@ async function onServe(m, fromServer = false) {
   }
   if (!showPhoto) $("dish-card").classList.add("out");
 
-  // 3. 奥のお客さんへ出して、食べてもらう
+  // 3. 出す。キッチンの画面ならお客さんの画面へ送る。1 画面なら奥のお客さんが食べる
   const from = plate.position.clone();
+  if (VIEW === "kitchen") {
+    const onPlate = pieces.filter((p) => p.state === "plate");
+    const msg = {
+      type: "dish", photo: showPhoto ? photoUrl : null, name, score: m.score ?? 0, comment: m.comment || "", demo: !!m.demo,
+      pieces: onPlate.map((p) => ({ t0: p.t0, t1: p.t1, cook: p.cook })),
+    };
+    $("dish-card").classList.add("out");
+    tween(1.0, (k) => plate.position.lerpVectors(from, SERVE_C, ease.io(k)), () => {
+      const f2 = plate.position.clone();
+      tween(0.6, (k) => {
+        plate.position.lerpVectors(f2, SERVE_C.clone().add(new THREE.Vector3(0, 0, -500)), ease.in(k));
+        plate.scale.setScalar(1 - 0.6 * k);
+      }, () => (plate.visible = false));
+      if (bus) bus.postMessage(msg);
+      if (guestOnline()) waitGuest = performance.now();
+      toast(bus ? "お客さんに出しました！" : "お客さんの画面につながっていません");
+    });
+    return;
+  }
   if (showPhoto) $("dish-card").classList.add("eat");   // 札はクマの横へ
   tween(1.0, (k) => plate.position.lerpVectors(from, SERVE_C, ease.io(k)), () => {
     showGuest(true);
     setFace("normal");
-    later(0.8, () => {
-      setFace("chew");
-      // 皿の上のにんじん（3D）と、札の写真を、同じテンポでかじる
-      const bites = pieces.filter((p) => p.state === "plate");
-      const n = Math.max(showPhoto ? 4 : 1, bites.length);
-      bites.forEach((p, i) => tween(0.35, (k) => p.obj.scale.setScalar(Math.max(0.001, 1 - ease.in(k))), () => (p.obj.visible = false),
-        0.25 + ((i * n) / bites.length) * 0.5));
-      if (showPhoto) {
-        for (let i = 0; i < n; i++) later(0.25 + i * 0.5, () => { bite(i, n); sound.plop(); });
-        later(0.25 + n * 0.5 + 0.2, () => $("dish-card").classList.add("out"));
-      }
-      const dur = 0.4 + n * 0.45 + 0.4;
-      tween(dur, (k) => {
-        guest.chewMouth.scale.y = 0.4 + Math.abs(Math.sin(k * dur * 14)) * 0.6;
-        guest.root.rotation.z = Math.sin(k * dur * 9) * 0.04;
-      }, () => {
-        guest.root.rotation.z = 0;
-        const score = m.score ?? 0;
-        setFace(score >= 80 ? "happy" : score >= 50 ? "normal" : "frown");
-        const y0 = guest.root.position.y;
-        tween(0.5, (k) => (guest.root.position.y = y0 + Math.sin(k * Math.PI) * (score >= 80 ? 40 : 12)));
-        showCard(score, COMMENTS[m.comment] || m.comment || "", m.demo);
-        if (score >= 50) sound.serve();
-      });
-    });
+    later(0.8, () => eatDish(pieces.filter((p) => p.state === "plate"), showPhoto, m));
   });
+}
+// クマが食べる: 3D のピースと札の写真を、同じテンポでかじる。終わったら点数
+function eatDish(bites, showPhoto, m) {
+  setFace("chew");
+  const n = Math.max(showPhoto ? 4 : 1, bites.length);
+  bites.forEach((p, i) => tween(0.35, (k) => p.obj.scale.setScalar(Math.max(0.001, 1 - ease.in(k))), () => (p.obj.visible = false),
+    0.25 + ((i * n) / Math.max(1, bites.length)) * 0.5));
+  if (showPhoto) {
+    for (let i = 0; i < n; i++) later(0.25 + i * 0.5, () => { bite(i, n); sound.plop(); });
+    later(0.25 + n * 0.5 + 0.2, () => $("dish-card").classList.add("out"));
+  }
+  const dur = 0.4 + n * 0.45 + 0.4;
+  tween(dur, (k) => {
+    guest.chewMouth.scale.y = 0.4 + Math.abs(Math.sin(k * dur * 14)) * 0.6;
+    guest.root.rotation.z = Math.sin(k * dur * 9) * 0.04;
+  }, () => {
+    guest.root.rotation.z = 0;
+    const score = m.score ?? 0;
+    setFace(score >= 80 ? "happy" : score >= 50 ? "normal" : "frown");
+    const y0 = guest.root.position.y;
+    tween(0.5, (k) => (guest.root.position.y = y0 + Math.sin(k * Math.PI) * (score >= 80 ? 40 : 12)));
+    showCard(score, COMMENTS[m.comment] || m.comment || "", m.demo);
+    if (score >= 50) sound.serve();
+    if (VIEW === "guest" && bus) bus.postMessage({ type: "result", score, comment: m.comment || "", demo: !!m.demo });
+  });
+}
+// お客さんの画面: キッチンから届いた料理を、テーブルに出して食べる
+let guestBusy = false;
+async function guestEat(msg) {
+  if (guestBusy) return;
+  guestBusy = true;
+  const my = serveId;
+  const dp = dining.plate;
+  while (dp.children.length > 2) dp.remove(dp.children[dp.children.length - 1]);   // 前の料理を片づける
+  const made = msg.pieces.map((q) => {
+    const pc = buildPiece(q.t0, q.t1);
+    const c = Math.min(1, q.cook || 0);
+    pc.skin.color.copy(RAW).lerp(COOKED, c * 0.75);
+    pc.skin.roughness = 0.5 - 0.22 * c;
+    pc.capMat.color.copy(RAW).lerp(CAP_COOKED, c);
+    const a = Math.random() * 6.28, r = Math.sqrt(Math.random()) * 40;
+    pc.obj.position.set(Math.cos(a) * r, 4 + (pc.rA + pc.rB) / 2 * 0.92, Math.sin(a) * r);
+    pc.obj.rotation.set(0, Math.random() * 6.28, -Math.atan2(pc.rA - pc.rB, Math.max(8, pc.len)), "YXZ");
+    dp.add(pc.obj);
+    return pc;
+  });
+  dp.visible = true;
+  dp.scale.setScalar(1);
+  const p0 = D0.clone().add(new THREE.Vector3(-1400, 0, 80)), p1 = D0.clone().add(new THREE.Vector3(0, 0, 80));
+  dp.position.copy(p0);
+  setFace("normal");
+  toast("お待たせしました！");
+  await new Promise((ok) => tween(1.1, (k) => dp.position.lerpVectors(p0, p1, ease.out(k)), ok));
+  if (my !== serveId) return (guestBusy = false);
+  for (let i = 0; i < 8; i++) puff(p1.clone().add(new THREE.Vector3((Math.random() - 0.5) * 120, 20, (Math.random() - 0.5) * 120)), 0.8);
+  let showPhoto = false;
+  if (msg.photo) {
+    const im = await loadImg(msg.photo).catch(() => null);
+    if (im && my === serveId) {
+      drawDish(im);
+      showPhoto = true;
+      $("dish-title").textContent = "いただきます！";
+      $("dish-name").textContent = msg.name || "";
+      $("dish-card").classList.remove("out");
+      $("dish-card").classList.add("eat");
+      await new Promise((ok) => later(1.8, ok));
+    }
+  }
+  if (my !== serveId) return (guestBusy = false);
+  eatDish(made, showPhoto, msg);
+  later(6, () => (guestBusy = false));
 }
 let cardTimer = 0;
 function showCard(score, comment, demo) {
@@ -1736,8 +1861,10 @@ function showCard(score, comment, demo) {
   $("card").classList.remove("out");
   cardTimer = 8;
 }
-function onReset() {
+function onReset(fromBus = false) {
   serveId++;
+  waitGuest = 0;
+  if (VIEW === "kitchen" && bus && !fromBus) bus.postMessage({ type: "reset" });
   if (waitFx) stopWaitFx();
   tweens.length = 0;
   state.fire = 0;
@@ -1755,9 +1882,17 @@ function onReset() {
     s.state = "home";
     s.shakeLeft = 0;
   }
-  guest.shown = false;
-  guest.root.position.y = -460;
+  plate.visible = true;
+  plate.scale.setScalar(1);
   guest.root.rotation.z = 0;
+  if (VIEW === "guest") {
+    guest.root.position.copy(D0).add(new THREE.Vector3(0, 205, -240));
+    if (dining.plate) dining.plate.visible = false;
+    guestBusy = false;
+  } else {
+    guest.shown = false;
+    guest.root.position.y = -460;
+  }
   setFace("normal");
   $("card").classList.add("out");
   $("dish-card").classList.add("out");
@@ -1808,6 +1943,33 @@ function scheduleRetry() {
   retry = Math.min(10, retry * 1.6);
 }
 
+// ---------------- 画面どうしのやり取り ----------------
+let kitchenSeen = 0, guestSeen = 0, waitGuest = 0;   // waitGuest: お客さんが食べ終わるのを待っている（時刻）
+const guestOnline = () => performance.now() - guestSeen < 4000;
+if (bus) {
+  bus.onmessage = (e) => {
+    const msg = e.data || {};
+    if (msg.type === "hello" && VIEW === "guest") kitchenSeen = performance.now();
+    if (msg.type === "guest-hello" && VIEW === "kitchen") guestSeen = performance.now();
+    if (msg.type === "reset" && VIEW === "guest") onReset(true);
+    if (msg.type === "dish" && VIEW === "guest") guestEat(msg);
+    if (msg.type === "result" && VIEW === "kitchen") {
+      waitGuest = 0;
+      showCard(msg.score, COMMENTS[msg.comment] || msg.comment || "", msg.demo);
+      toast("お客さんが食べ終わりました");
+    }
+  };
+  if (VIEW === "kitchen") setInterval(() => bus.postMessage({ type: "hello" }), 1500);
+  if (VIEW === "guest") setInterval(() => bus.postMessage({ type: "guest-hello" }), 1500);
+}
+if (VIEW === "guest") {
+  setStatus("retry", "キッチンの画面を待っています");
+  setInterval(() => {
+    if (bus && performance.now() - kitchenSeen < 4000) setStatus("ok", "キッチンとつながっています");
+    else setStatus("retry", "キッチンの画面を待っています");
+  }, 1000);
+}
+
 // ---------------- デモ（サーバーがないとき） ----------------
 let seqDemo = 0;
 const send = (m) => handle({ device: "demo", ts: Date.now(), seq: ++seqDemo, ...m });
@@ -1835,6 +1997,7 @@ const DEMO_LEN = 41.5;
 const demo = {
   on: false, manual: false, t: 0, idx: 0, lastKnife: 0,
   start() {
+    if (VIEW === "guest") return;
     this.on = true;
     this.t = 0;
     this.idx = 0;
@@ -1844,10 +2007,12 @@ const demo = {
   stop() {
     this.on = false;
     $("demo-btn").classList.remove("on");
-    if (!wsOK) setStatus("retry", "サーバーを待っています");
+    if (!wsOK && VIEW !== "guest") setStatus("retry", "サーバーを待っています");
   },
   step(dt) {
     if (!this.on || genPending) return;
+    if (waitGuest && performance.now() - waitGuest < 30000) return;
+    waitGuest = 0;
     this.t += dt;
     while (this.idx < SCRIPT.length && SCRIPT[this.idx][0] <= this.t) SCRIPT[this.idx++][1]();
     // 包丁の位置を 20 回/秒で送る
@@ -1917,6 +2082,17 @@ document.querySelectorAll("[data-fire]").forEach((b) => b.addEventListener("clic
   send({ event: "fire", level: Number(b.dataset.fire) });
 }));
 $("panel-toggle").addEventListener("click", () => ($("panel").hidden = !$("panel").hidden));
+function viewUrl(v) {
+  const u = new URL(location.href);
+  u.searchParams.set("view", v);
+  u.searchParams.delete("t");
+  u.searchParams.delete("hold");
+  u.searchParams.delete("after");
+  return u.href;
+}
+$("open-guest").addEventListener("click", () => window.open(viewUrl("guest"), "omamagoto-guest", "width=1280,height=720"));
+$("open-kitchen").addEventListener("click", () => (location.href = viewUrl("kitchen")));
+if (VIEW === "kitchen") $("open-kitchen").hidden = true;
 function audioToggle() {
   if ($("sound").checked) audioOn();
 }
@@ -2008,8 +2184,9 @@ resize();
 // ---------------- 毎フレーム ----------------
 const RAW = new THREE.Color(0xffffff), COOKED = new THREE.Color(0xb0602a), CAP_COOKED = new THREE.Color(0xd99a55);
 let last = performance.now(), elapsed = 0;
+const DT_CAP = Number(params.get("dtcap")) || 0.05;   // 確認用: 描画が遅い PC でも時間を進める（例 ?dtcap=0.5）
 function tick(now) {
-  const dt = Math.min(0.05, (now - last) / 1000);
+  const dt = Math.min(DT_CAP, (now - last) / 1000);
   last = now;
   update(HOLD || after > 0 ? 0 : dt);
   camera.position.copy(CAM_POS).add(camShake);
@@ -2022,6 +2199,7 @@ function tick(now) {
 }
 function update(dt) {
   elapsed += dt;
+  if (VIEW === "guest" && !guestBusy) guest.root.rotation.z = Math.sin(elapsed * 1.6) * 0.025;
   demo.step(dt);
   stepTweens(dt);
   const f = 1 - Math.exp(-dt * 14);
