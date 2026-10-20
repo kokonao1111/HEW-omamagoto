@@ -217,6 +217,17 @@
     border: 1px solid var(--line);
   }
   .label.new { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+  .mlabel {
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 14px;
+    line-height: 1.3;
+    white-space: nowrap;
+    padding: 4px 12px;
+    border-radius: 999px;
+    color: var(--accent-ink);
+    background: var(--accent);
+  }
   .fallback { margin: 0; padding: 16px; }
   @media (max-width: 860px) {
     html, body { height: auto; }
@@ -245,6 +256,7 @@
         <button type="button" data-view="top">上</button>
       </div>
       <div class="tools tools-show" role="group" aria-label="表示">
+        <label class="toggle"><input type="checkbox" id="t-split"> 3 つに分ける</label>
         <label class="toggle"><input type="checkbox" id="t-explode"> 分解</label>
         <label class="toggle"><input type="checkbox" id="t-labels"> 番号</label>
         <label class="toggle"><input type="checkbox" id="t-ghost" checked> 完成形をうすく</label>
@@ -515,6 +527,34 @@
     uv.needsUpdate = true;
     return new THREE.Mesh(geom, mats);
   }
+  // 窓をくり抜いた合板（hole = 左下の角からの x・y・幅・高さ）。面は木目、木口は合板の縞
+  function holePanelMesh(w, h, t, hole) {
+    const [hx, hy, hw, hh] = hole;
+    const shape = new THREE.Shape();
+    shape.moveTo(0, 0);
+    shape.lineTo(w, 0);
+    shape.lineTo(w, h);
+    shape.lineTo(0, h);
+    shape.lineTo(0, 0);
+    const hp = new THREE.Path();
+    hp.moveTo(hx, hy);
+    hp.lineTo(hx, hy + hh);
+    hp.lineTo(hx + hw, hy + hh);
+    hp.lineTo(hx + hw, hy);
+    hp.lineTo(hx, hy);
+    shape.holes.push(hp);
+    const geom = new THREE.ExtrudeGeometry(shape, { depth: t, bevelEnabled: false });
+    const uv = geom.attributes.uv, pos = geom.attributes.position;
+    const ou = woodRnd(), ov = woodRnd();
+    const [caps, sides] = geom.groups;
+    for (let i = caps.start; i < caps.start + caps.count; i++) uv.setXY(i, pos.getX(i) / 420 + ou, pos.getY(i) / 420 + ov);
+    for (let i = sides.start; i < sides.start + sides.count; i++) uv.setXY(i, (pos.getX(i) + pos.getY(i)) / 200, pos.getZ(i) / t);
+    uv.needsUpdate = true;
+    geom.translate(-w / 2, -h / 2, -t / 2);
+    const face = std(0xffffff, { map: grainTex, roughness: 0.72 });
+    const edge = std(0xffffff, { map: plyTex, roughness: 0.85 });
+    return new THREE.Mesh(geom, [face, edge]);
+  }
   function paintMesh(sx, sy, sz, mat, frontMap) {
     const geom = new THREE.BoxGeometry(sx, sy, sz);
     if (!frontMap) return new THREE.Mesh(geom, mat);
@@ -549,7 +589,12 @@
     clip: () => std(0x2a2c2e, { roughness: 0.5 }),
     pcb: () => std(0x1f5f8f, { roughness: 0.45 }),
     wire: () => std(0xe0782a, { roughness: 0.5 }),
-    usb: () => std(0x2b2d30, { roughness: 0.55 }),
+    usb: () => std(0x6a6d72, { roughness: 0.55 }),
+    steel: () => std(0x2a2c30, { roughness: 0.4, metalness: 0.45 }),
+    chrome: () => std(0xd4d8dc, { roughness: 0.22, metalness: 0.85 }),
+    pblack: () => std(0x26272a, { roughness: 0.6 }),
+    brio: () => std(0xf2f1ec, { roughness: 0.45 }),
+    velcro: () => std(0x3d5a73, { roughness: 0.85 }),
   };
   const kindMat = (k) => (KIND[k] || (() => std(0xcccccc)))();
 
@@ -666,6 +711,84 @@
     g.add(foot);
     return g;
   }
+  // 前から見て両端が半円の板（カプセル形）。前の面が z = 0、奥行きは z = -d まで
+  function stadium(w, h) {
+    const s = new THREE.Shape(), r = h / 2, x = Math.max(0, w / 2 - r);
+    s.moveTo(-x, -r);
+    s.lineTo(x, -r);
+    s.absarc(x, 0, r, -Math.PI / 2, Math.PI / 2, false);
+    s.lineTo(-x, r);
+    s.absarc(-x, 0, r, Math.PI / 2, Math.PI * 1.5, false);
+    return s;
+  }
+  function slab(w, h, d, mat, b) {
+    const g = new THREE.ExtrudeGeometry(stadium(w - 2 * b, h - 2 * b),
+      { depth: Math.max(0.1, d - 2 * b), bevelEnabled: b > 0, bevelThickness: b, bevelSize: b, bevelSegments: 3, curveSegments: 28 });
+    g.translate(0, 0, -(d - b));
+    return new THREE.Mesh(g, mat);
+  }
+  // Brio 100（グラファイト）。レンズが原点、+z がレンズの向き。本体はレンズから off だけカメラの左（+x）へずれる
+  function brioShape(it, center) {
+    const [w, h, d] = it.body;
+    const off = it.off || 0;
+    const head = new THREE.Group();
+    const body = slab(w, h, d, std(0x3a3b3e, { roughness: 0.55 }), 2.5);
+    body.position.x = off;
+    head.add(body);
+    const pw = w * 0.56;
+    const panel = slab(pw, h * 0.62, 1.2, std(0x0d0e10, { roughness: 0.12, metalness: 0.2 }), 0);
+    panel.position.set(pw / 2 - 14, 0, 0.9);
+    head.add(panel);
+    const led = new THREE.Mesh(new THREE.BoxGeometry(1.6, 7, 1), new THREE.MeshBasicMaterial({ color: 0xf5f5f5 }));
+    led.position.set(-11.5, 0, 1.4);
+    head.add(led);
+    const ring = new THREE.Mesh(new THREE.CylinderGeometry(7.5, 7.5, 1.4, 32), std(0x2c2e31, { metalness: 0.5, roughness: 0.3 }));
+    ring.rotation.x = Math.PI / 2;
+    ring.position.z = 1.6;
+    head.add(ring);
+    const glass = new THREE.Mesh(new THREE.CylinderGeometry(4.5, 4.5, 1, 32), std(0x05080c, { roughness: 0.05, metalness: 0.2 }));
+    glass.rotation.x = Math.PI / 2;
+    glass.position.z = 2.3;
+    head.add(glass);
+    for (let i = 0; i < 4; i++) {          // マイクの穴
+      for (let j = 0; j < 3; j++) {
+        const dot = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.4, 8), std(0x2a2c2f, { roughness: 0.4 }));
+        dot.rotation.x = Math.PI / 2;
+        dot.position.set(10 + j * 2.2, -3.3 + i * 2.2, 1.6);
+        head.add(dot);
+      }
+    }
+    const sx = off + w / 2 - 17;             // プライバシーシャッターの帯（カメラから見て左寄り）
+    const band = new THREE.Mesh(new THREE.BoxGeometry(9, h + 2.4, d + 2.4), std(0x232426, { roughness: 0.6 }));
+    band.position.set(sx, 0, -d / 2);
+    head.add(band);
+    const disc = new THREE.Mesh(new THREE.CylinderGeometry(9.5, 9.5, 1.6, 32), std(0x262729, { roughness: 0.5 }));
+    disc.rotation.x = Math.PI / 2;
+    disc.position.set(sx, 0, 1.5);
+    head.add(disc);
+    if (it.foot) {                           // 足（モニターに掛ける部分）。本体の後ろ下の付け根から下へ伸び、先の板が斜め後ろへ開く
+      const [fw, fl, ft, open] = it.foot;
+      const black = std(0x1f2022, { roughness: 0.7 });
+      const hinge = new THREE.Mesh(new THREE.BoxGeometry(30, 8, 10), black);
+      hinge.position.set(off, -h / 2 - 3, -d + 7);
+      head.add(hinge);
+      const leg = new THREE.Mesh(new THREE.BoxGeometry(fw - 2, 18, ft), black);
+      leg.position.set(off, -h / 2 - 13, -d + 4);
+      head.add(leg);
+      const pivot = new THREE.Mesh(new THREE.CylinderGeometry(3.5, 3.5, fw - 6, 16), black);
+      pivot.rotation.z = Math.PI / 2;
+      pivot.position.set(off, -h / 2 - 22, -d + 4);
+      head.add(pivot);
+      const a = (open * Math.PI) / 180;      // 足の板が真下から後ろへ開く角度
+      const foot = new THREE.Mesh(new THREE.BoxGeometry(fw, fl, ft), black);
+      foot.rotation.x = a;
+      foot.position.set(off, -h / 2 - 22 - Math.cos(a) * fl / 2, -d + 4 - Math.sin(a) * fl / 2);
+      head.add(foot);
+    }
+    const m4 = new THREE.Matrix4().lookAt(v3(it.aim), center, UP);
+    head.quaternion.setFromRotationMatrix(m4);
+    return head;
+  }
   function camShape(it, center) {
     const [w, h, d] = it.body;
     const dark = it.tone === "dark";
@@ -703,6 +826,12 @@
       else mesh = paintMesh(sx, sy, sz, kindMat(it.kind), it.face === "knobs" ? frontTex : null);
       return { center, content: mesh, edgesOf: it.round ? null : mesh.geometry, size: [sx, sy, sz] };
     }
+    if (sh === "wpanel") {
+      const center = boxCenter(it.box);
+      const [sx, sy, sz] = boxSize(it.box);
+      const mesh = holePanelMesh(sx, sy, sz, it.hole);
+      return { center, content: mesh, edgesOf: mesh.geometry, size: [sx, sy, sz] };
+    }
     if (sh === "screen") {
       const b = it.box;
       const [sx, sy] = boxSize(b);
@@ -715,11 +844,27 @@
       return { center, content: rodMesh(a.sub(center), b.sub(center), it.r, kindMat(it.kind)) };
     }
     if (sh === "ball") return { center: v3(it.c), content: new THREE.Mesh(new THREE.SphereGeometry(it.r, 24, 16), kindMat(it.kind)) };
+    if (sh === "obox") {   // 向きのある箱（ax = 3 本の向き。設計図の座標）
+      const [s1, s2, s3] = it.size;
+      const a = it.ax;
+      const mesh = it.kind === "ply" ? plyMesh(s1, s2, s3) : new THREE.Mesh(new THREE.BoxGeometry(s1, s2, s3), kindMat(it.kind));
+      const m4 = new THREE.Matrix4().makeBasis(v3(a.slice(0, 3)), v3(a.slice(3, 6)), v3(a.slice(6, 9)));
+      mesh.quaternion.setFromRotationMatrix(m4);
+      return { center: v3(it.c), content: mesh };
+    }
+    if (sh === "tube") {   // 点を通る曲がった管（ケーブル・バネ）
+      const pts = it.pts.map(v3);
+      const center = pts.reduce((s, p) => s.add(p), new THREE.Vector3()).multiplyScalar(1 / pts.length);
+      const curve = new THREE.CatmullRomCurve3(pts.map((p) => p.clone().sub(center)), false, "catmullrom", 0.5);
+      const segs = Math.max(24, Math.min(1500, pts.length * (it.seg || 8)));
+      return { center, content: new THREE.Mesh(new THREE.TubeGeometry(curve, segs, it.r, it.rs || 8, false), kindMat(it.kind)) };
+    }
     if (sh === "microwave") return { center: boxCenter(it.box), content: microwaveShape(it), size: boxSize(it.box) };
     const center = v3(it.c);
     const make = { knob: knobShape, burner: burnerShape, pan: panShape, carrot: carrotShape, bottle: bottleShape, plate: plateShape }[sh];
     if (make) return { center, content: make(it) };
     if (sh === "cam") return { center, content: camShape(it, center) };
+    if (sh === "brio") return { center, content: brioShape(it, center) };
     return { center, content: new THREE.Mesh(new THREE.BoxGeometry(20, 20, 20), std(0xff00ff)) };
   }
 
@@ -777,18 +922,22 @@
       target: center.clone(),
       from: new THREE.Vector3(it.from[0], it.from[2], -it.from[1]),
       ex: it.ex ? new THREE.Vector3(it.ex[0], it.ex[2], -it.ex[1]) : null,
+      split: it.split ? new THREE.Vector3(it.split[0], it.split[2], -it.split[1]) : null,
     };
     for (const m of meshes) m.userData.obj = o;
     objs.push(o);
   }
 
+  // 黒い部品は光らせると赤く見えて元の色がわからなくなるので、光らせない（矢印で示す）
+  const DARK_KINDS = new Set(["camera", "steel", "pblack", "monitor", "clip", "stove", "velcro"]);
   function setGlow(o, on) {
+    const k = DARK_KINDS.has(o.it.kind) ? 0 : 0.18;
     for (const m of o.meshes) {
       const mats = Array.isArray(m.material) ? m.material : [m.material];
       for (const mt of mats) {
         if (!mt.emissive) continue;
         mt.emissive.copy(on ? lin(accentHex) : new THREE.Color(0x000000));
-        mt.emissiveIntensity = on ? 0.18 : 0;
+        mt.emissiveIntensity = on ? k : 0;
       }
     }
   }
@@ -836,6 +985,18 @@
   let step = 0;
   let picked = null;
   const tExplode = $("t-explode"), tLabels = $("t-labels"), tGhost = $("t-ghost"), tCams = $("t-cams"), tDesk = $("t-desk");
+  const tSplit = $("t-split");
+  // 「3 つに分ける」のときに出す名前（下の台・上の枠・モニター…）
+  const moduleLabels = (DATA.modules || []).map((m) => {
+    const e = document.createElement("div");
+    e.className = "mlabel";
+    e.textContent = m.text;
+    const obj = new THREE.CSS2DObject(e);
+    obj.position.copy(v3(m.pos));
+    obj.visible = false;
+    scene.add(obj);
+    return obj;
+  });
   const center0 = new THREE.Vector3(W / 2, 380, -DEP / 2);
 
   function explodeOffset(o) {
@@ -861,10 +1022,12 @@
         o.label.element.classList.toggle("new", isNew);
       }
       o.target.copy(o.home);
-      if (tExplode.checked && visible && s > 0) o.target.add(explodeOffset(o));
+      if (tSplit.checked && visible && s > 0 && o.split) o.target.add(o.split);
+      else if (tExplode.checked && visible && s > 0) o.target.add(explodeOffset(o));
       if (!animate || reduceMotion) o.group.position.copy(o.target);
       else if (isNew) o.group.position.copy(o.target).add(o.from);
     }
+    for (const m of moduleLabels) m.visible = tSplit.checked;
     floor.visible = tDesk.checked;
     shadowFloor.visible = !tDesk.checked;
     frustums.visible = tCams.checked;
@@ -939,9 +1102,12 @@
     side: [-2500, 320, 0],
     top: [0, 2700, 30],
   };
-  // 「分解」のときは部材が広がるので、少し引いて、広がった真ん中（上・奥）を見る
-  const EXPLODE_ZOOM = 1.3;
-  const EXPLODE_SHIFT = new THREE.Vector3(0, 130, -150);
+  // 「分解」「3 つに分ける」のときは部材が広がるので、少し引いて、広がった真ん中（上・奥）を見る
+  const SPREAD = {
+    explode: { zoom: 1.3, shift: new THREE.Vector3(0, 130, -150), key: "ex" },
+    split: { zoom: 1.6, shift: new THREE.Vector3(0, 330, -260), key: "sp" },
+  };
+  const spreadMode = () => (tSplit.checked ? SPREAD.split : (tExplode.checked ? SPREAD.explode : null));
   let camAnim = null;
   function moveCamera(p1, q1, instant, dur) {
     if (instant || reduceMotion) {
@@ -952,20 +1118,23 @@
     }
     camAnim = { t0: performance.now(), dur, p0: camera.position.clone(), p1, q0: controls.target.clone(), q1 };
   }
+  // 工程の view は名前（VIEWS）か、寄って見る向き {target, off, ex}（設計図の座標。ex = 分解のときに動く量）
+  const isNear = (v) => v && typeof v === "object";
   function goView(name, instant) {
-    const off = VIEWS[name] || VIEWS.iso;
-    const ex = tExplode.checked;
-    const tgt = ex ? target0.clone().add(EXPLODE_SHIFT) : target0.clone();
-    const to = tgt.clone().add(new THREE.Vector3(off[0], off[1], off[2]).multiplyScalar(ex ? EXPLODE_ZOOM : 1));
+    const sp = spreadMode();
+    let tgt, offv;
+    if (isNear(name)) {
+      tgt = v3(name.target);
+      if (sp && name[sp.key]) tgt.add(v3(name[sp.key]));
+      offv = v3(name.off);
+    } else {
+      const off = VIEWS[name] || VIEWS.iso;
+      tgt = sp ? target0.clone().add(sp.shift) : target0.clone();
+      offv = new THREE.Vector3(off[0], off[1], off[2]);
+    }
+    const to = tgt.clone().add(offv.multiplyScalar(sp ? sp.zoom : 1));
     document.querySelectorAll("[data-view]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === name)));
     moveCamera(to, tgt, instant, 750);
-  }
-  function reframeExplode() {   // 今の向きのまま、引く／寄る
-    const on = tExplode.checked;
-    const q0 = controls.target.clone();
-    const q1 = on ? q0.clone().add(EXPLODE_SHIFT) : q0.clone().sub(EXPLODE_SHIFT);
-    const p1 = q1.clone().add(camera.position.clone().sub(q0).multiplyScalar(on ? EXPLODE_ZOOM : 1 / EXPLODE_ZOOM));
-    moveCamera(p1, q1, false, 600);
   }
   function stepCamera(now) {
     if (!camAnim) return;
@@ -998,8 +1167,10 @@
   $("prev").addEventListener("click", () => go(step - 1));
   $("next").addEventListener("click", () => go(step + 1));
   document.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => goView(b.dataset.view)));
-  [tExplode, tLabels, tGhost, tCams, tDesk].forEach((t) => t.addEventListener("change", () => applyState(true)));
-  tExplode.addEventListener("change", reframeExplode);
+  [tLabels, tGhost, tCams, tDesk].forEach((t) => t.addEventListener("change", () => applyState(true)));
+  // 「分解」と「3 つに分ける」はどちらか 1 つ。切り替えたら、その工程の向きで見直す
+  tExplode.addEventListener("change", () => { if (tExplode.checked) tSplit.checked = false; applyState(true); goView(steps[step].view); });
+  tSplit.addEventListener("change", () => { if (tSplit.checked) tExplode.checked = false; applyState(true); goView(steps[step].view); });
   document.addEventListener("keydown", (e) => {
     if (e.target && ["INPUT", "TEXTAREA"].includes(e.target.tagName)) return;
     if (e.key === "ArrowRight") go(step + 1);

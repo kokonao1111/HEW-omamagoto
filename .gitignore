@@ -17,3 +17,10 @@ device/host_test/build/
 # Rust サーバーのビルド成果物
 server/target/
 server/logs/
+
+# 料理の写真の元データ（大きいので入れない。使うのは dishes.js と *.jpg）
+screen/dishes/*_raw.png
+
+# 展示で作った料理の写真
+screen/generated/
+screen/dish_test.log
