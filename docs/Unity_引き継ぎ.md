@@ -64,7 +64,7 @@ HAL の HEW（2027 年 3 月）に出すチーム制作「リアルおままご�
 | フォルダー | 中身 | 状態 |
 | --- | --- | --- |
 | `device/` | M5StickS3 のファームウェア（振り・つまみ。BLE） | 動く。カウンターのスイッチはまだ |
-| `server/` | Rust のサーバー。BLE でデバイスにつながり、振り → グラム、つまみ → 火の強さ | 動く。**Unity への WebSocket はまだない**。カメラの受信、焼き加減、採点、リセットもまだ |
+| `server/` | Rust のサーバー。BLE でデバイスに、WebSocket でカメラと画面につながる。振り → グラム、つまみ → 火の強さ、カメラのイベントを画面へ、リセット | 動く。`ws://<PC>:9000/screen` で画面にイベントを送る（`server/README.md`）。提供（`serve`）・焼き加減・採点はまだ |
 | `camera/` `train/` `models/` | カメラの認識（YOLO・手の検出）、学習 | 1 台で動く。WebSocket で送る作りはある |
 | `screen/` | three.js のテスト版の画面（`index.html`）と、料理の写真を作る中継（`dish_server.py`） | 動く。Unity を作るときの見本 |
 | `docs/` | 要件定義書、キッチン設計書、3D の組み立てガイド（`kitchen_3d.html`） | |
@@ -117,8 +117,10 @@ HAL の HEW（2027 年 3 月）に出すチーム制作「リアルおままご�
 ### 5.2 イベントを受け取る（WebSocket）
 
 - 受け取るイベントは要件定義書 6.4：`position` `swing` `cut` `add` `season` `fire` `serve` `reset` `status`
-- 接続先は `ws://localhost:9000/screen`（three.js 版と同じ）。変えられるようにしておく。サーバー側（Rust）にはまだないので、サーバーの担当と URL を合わせる
-- つながったら `{"device":"screen","event":"hello"}` を 1 回送る
+- 接続先は `ws://localhost:9000/screen`（three.js 版と同じ）。変えられるようにしておく。サーバーが送るもの・受け取るものは `server/README.md` の「画面とカメラとのつなぎ方」
+- つながったら `{"device":"screen","event":"hello"}` を 1 回送る（サーバーが今の火の段階を送り返す）
+- 画面でリセットするときは `{"event":"reset"}` をサーバーに送る（サーバーの調味料なども 0 に戻り、全部の画面に `reset` が来る）
+- `seq` はサーバーを起動するたびに 1 から。つなぎ直したら、前の `seq` は忘れる
 - 切れたら自動でつなぎ直す。つなぎ直している間は、画面の隅に小さく出す
 - ライブラリは要件定義書では NativeWebSocket。`System.Net.WebSockets.ClientWebSocket` でもよい
 - 位置は Lerp でなめらかにする
@@ -127,7 +129,8 @@ HAL の HEW（2027 年 3 月）に出すチーム制作「リアルおままご�
 
 - Unity の中に、キーでイベントを出す仕組みを作る（three.js 版と同じキー：K 振り下ろす、C 切る、A 入れる、S/P 塩・こしょう、0〜3 火、Enter 提供、R リセット、D デモ）
 - サーバーなしのときに流すデモ（three.js 版の台本と同じ流れ）
-- あると便利：`ws://localhost:9000/screen` の偽のサーバー（Python の `websockets` で、台本どおりにイベントを送るだけ）。置き場所は `unity/tools/`。Rust のサーバーができたら要らなくなる
+- 本物のサーバーは、この PC でもデバイスなしで動く：`cd server` → `cargo run -- --no-ble`（Rust を入れる）。カメラのふりをして `ws://localhost:9000/camera` に 6.3 の JSON を送れば、サーバーを通って画面に届く
+- あると便利：カメラのふりをして、台本どおりに 6.3 のイベントを送る小さなプログラム（Python の `websockets`）。置き場所は `unity/tools/`
 
 ### 5.4 キッチンの画面（横のモニター）
 
@@ -173,7 +176,7 @@ py screen\dish_server.py --mock
 
 ## 7. ほかの PC とつなぐとき
 
-- 開発中は、Rust のサーバーやカメラは別の PC（Mac）で動くことがある。そのときは `localhost` の代わりに、その PC の IP アドレスにする（例：`ws://192.168.x.x:9000/screen`）。Windows のファイアウォールで許可が要ることがある
+- 開発中は、Rust のサーバーやカメラは別の PC（Mac）で動くことがある。そのときは `localhost` の代わりに、その PC の IP アドレスにする（例：`ws://192.168.x.x:9000/screen`）。サーバーを起動すると「別の PC からは ws://…」とアドレスが出る。ファイアウォールで許可が要ることがある
 - 展示用 PC では、サーバー・カメラ・`dish_server.py`・Unity を全部 1 台で動かすので、`localhost` のままでよい
 - three.js 版の画面どうしのやり取り（BroadcastChannel）は、Unity では使わない（Unity は 1 つのアプリで 2 画面を出す）
 
