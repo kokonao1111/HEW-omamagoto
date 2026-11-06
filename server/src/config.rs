@@ -1,5 +1,5 @@
 //! サーバーの設定ファイル（要件定義書 5.9、6.5）
-//! MAC アドレス → 役割と、振り 1 回あたりのグラム数を持つ。書き換えて再起動すれば反映される。
+//! MAC アドレス → 役割、振り 1 回あたりのグラム数、WebSocket で待つ場所を持つ。書き換えて再起動すれば反映される。
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -35,6 +35,25 @@ pub struct Config {
     pub roles: HashMap<String, Role>,
     #[serde(default)]
     pub season: SeasonConfig,
+    #[serde(default)]
+    pub ws: WsConfig,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct WsConfig {
+    /// 画面とカメラがつなぎに来る所。PC の中だけなら 127.0.0.1:9000、別の PC からもつなぐなら 0.0.0.0:9000
+    #[serde(default = "default_listen")]
+    pub listen: String,
+}
+
+impl Default for WsConfig {
+    fn default() -> Self {
+        Self { listen: default_listen() }
+    }
+}
+
+fn default_listen() -> String {
+    "127.0.0.1:9000".to_string()
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -89,6 +108,14 @@ idle_seconds = 90
         assert_eq!(c.role_of("AA:BB:CC:DD:EE:FF"), Some(Role::Salt));
         assert_eq!(c.role_of("77:88:99:AA:BB:CC"), Some(Role::Range));
         assert_eq!(c.season.grams_per_shake[&Role::Pepper], 0.2);
+        // [ws] が無ければ PC の中だけで待つ
+        assert_eq!(c.ws.listen, "127.0.0.1:9000");
+    }
+
+    #[test]
+    fn reads_ws_listen() {
+        let c = Config::parse("[roles]\n[ws]\nlisten = \"0.0.0.0:9000\"\n").unwrap();
+        assert_eq!(c.ws.listen, "0.0.0.0:9000");
     }
 
     #[test]

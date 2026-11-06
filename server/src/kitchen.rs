@@ -1,11 +1,11 @@
 //! サーバーの本体：鍋の状態（要件定義書 5.9）
-//! デバイスからの 1 件を受けて状態を変え、Unity に出すイベントを返す。非同期は使わない。
-//! 今あるのは調味料と火の強さ。切った野菜・フライパンの中身・工程・採点・リセットは次の段階で足す。
+//! デバイス・カメラからの 1 件を受けて状態を変え、Unity に出すイベントを返す。非同期は使わない。
+//! 今あるのは調味料・火の強さ・切ったピース数・ゾーンに入った数・リセット。焼き加減・工程・採点は次の段階で足す。
 
 use std::collections::HashMap;
 
 use crate::config::{Config, Role};
-use crate::event::{DeviceEvent, DeviceMessage, ServerEvent};
+use crate::event::{CameraEvent, CameraMessage, DeviceEvent, DeviceMessage, ServerEvent};
 
 /// 1 件を処理した結果
 #[derive(Debug, PartialEq)]
@@ -30,11 +30,26 @@ pub struct Kitchen {
     fire: u8,
     /// デバイスごとのバッテリー残量（%）。運営用画面で使う
     battery: HashMap<String, i32>,
+    /// カメラのつながり（ws の id）ごとに、最後に受け付けた seq
+    camera_last: HashMap<u64, u64>,
+    /// 野菜ごとの、まな板の上のピース数（最後の cut）
+    pieces: HashMap<String, u32>,
+    /// (ゾーン, 野菜) ごとに入った数の合計
+    zones: HashMap<(String, String), u32>,
 }
 
 impl Kitchen {
     pub fn new(config: Config) -> Self {
-        Self { config, last: HashMap::new(), seasoning: HashMap::new(), fire: 0, battery: HashMap::new() }
+        Self {
+            config,
+            last: HashMap::new(),
+            seasoning: HashMap::new(),
+            fire: 0,
+            battery: HashMap::new(),
+            camera_last: HashMap::new(),
+            pieces: HashMap::new(),
+            zones: HashMap::new(),
+        }
     }
 
     pub fn handle(&mut self, msg: &DeviceMessage) -> Handled {
@@ -75,6 +90,55 @@ impl Kitchen {
         }
     }
 
+    /// カメラ（Python）からの 1 件。位置・切った・入れた・振り下ろしを Unity に流す。
+    /// source はつながりの番号。カメラのプログラムが複数でも、起動し直しても、つながりごとに seq を見る
+    pub fn handle_camera(&mut self, source: u64, msg: &CameraMessage) -> Handled {
+        if self.camera_last.get(&source).is_some_and(|&seq| msg.seq <= seq) {
+            return Handled::Duplicate;
+        }
+        self.camera_last.insert(source, msg.seq);
+
+        let ev = match &msg.event {
+            CameraEvent::Position { item, tip, grip, x, y, rot, visible } => ServerEvent::Position {
+                item: item.clone(),
+                tip: *tip,
+                grip: *grip,
+                x: *x,
+                y: *y,
+                rot: *rot,
+                visible: *visible,
+            },
+            CameraEvent::Cut { item, count } => {
+                self.pieces.insert(item.clone(), *count);
+                ServerEvent::Cut { item: item.clone(), count: *count }
+            }
+            CameraEvent::Add { item, zone, count } => {
+                *self.zones.entry((zone.clone(), item.clone())).or_insert(0) += count;
+                ServerEvent::Add { item: item.clone(), zone: zone.clone(), count: *count }
+            }
+            CameraEvent::Swing { item } => ServerEvent::Swing { item: item.clone() },
+            // 手の有無は、あとで無操作のリセットに使う。Unity には出さない
+            CameraEvent::Hand { .. } | CameraEvent::Unknown => return Handled::Accepted(vec![]),
+        };
+        Handled::Accepted(vec![ev])
+    }
+
+    /// 来場者が入れ替わったとき。調味料・ピース数・ゾーンを空にする。
+    /// 火はつまみの実際の位置なので戻さない。ついていたら、画面に今の火をもう一度伝える
+    pub fn reset(&mut self) -> Vec<ServerEvent> {
+        self.seasoning.clear();
+        self.pieces.clear();
+        self.zones.clear();
+        let mut out = vec![ServerEvent::Reset];
+        out.extend(self.sync());
+        out
+    }
+
+    /// 画面がつながったとき（起動し直したときなど）に、今の状態に合わせるためのイベント
+    pub fn sync(&self) -> Vec<ServerEvent> {
+        if self.fire > 0 { vec![ServerEvent::Fire { level: self.fire }] } else { vec![] }
+    }
+
     /// 同じデバイスから同じ起動のうちに、受け付けた連番以下が来たら重複。
     /// デバイスが再起動すると seq は 1 から、ts は 0 から数え直すので、ts が戻っていたら再起動とみなして受け付ける
     fn is_duplicate(&self, msg: &DeviceMessage) -> bool {
@@ -94,6 +158,14 @@ impl Kitchen {
 
     pub fn battery(&self) -> &HashMap<String, i32> {
         &self.battery
+    }
+
+    pub fn pieces(&self, item: &str) -> u32 {
+        self.pieces.get(item).copied().unwrap_or(0)
+    }
+
+    pub fn in_zone(&self, zone: &str, item: &str) -> u32 {
+        self.zones.get(&(zone.to_string(), item.to_string())).copied().unwrap_or(0)
     }
 }
 
@@ -200,6 +272,69 @@ mod tests {
     fn unknown_device_is_reported() {
         let mut k = kitchen();
         assert_eq!(k.handle(&msg("11:22:33:44:55:66", 1, 1, shake(1.0))), Handled::UnknownDevice);
+    }
+
+    fn cam(ts: i64, seq: u64, event: CameraEvent) -> CameraMessage {
+        CameraMessage { ts, seq, event }
+    }
+
+    #[test]
+    fn camera_events_go_to_unity() {
+        let mut k = kitchen();
+        let knife = CameraEvent::Position { item: "knife".into(), tip: Some([0.3, 0.1]), grip: Some([0.5, 0.0]), x: None, y: None, rot: None, visible: true };
+        assert_eq!(
+            k.handle_camera(1, &cam(1000, 1, knife)),
+            Handled::Accepted(vec![ServerEvent::Position { item: "knife".into(), tip: Some([0.3, 0.1]), grip: Some([0.5, 0.0]), x: None, y: None, rot: None, visible: true }])
+        );
+        assert_eq!(
+            k.handle_camera(1, &cam(1100, 2, CameraEvent::Cut { item: "carrot".into(), count: 3 })),
+            Handled::Accepted(vec![ServerEvent::Cut { item: "carrot".into(), count: 3 }])
+        );
+        assert_eq!(
+            k.handle_camera(1, &cam(1200, 3, CameraEvent::Add { item: "carrot".into(), zone: "pan".into(), count: 2 })),
+            Handled::Accepted(vec![ServerEvent::Add { item: "carrot".into(), zone: "pan".into(), count: 2 }])
+        );
+        k.handle_camera(1, &cam(1300, 4, CameraEvent::Add { item: "carrot".into(), zone: "pan".into(), count: 1 }));
+        assert_eq!(k.pieces("carrot"), 3);
+        assert_eq!(k.in_zone("pan", "carrot"), 3);
+        // 手の有無は画面に出さない
+        assert_eq!(k.handle_camera(1, &cam(1400, 5, CameraEvent::Hand { present: true })), Handled::Accepted(vec![]));
+    }
+
+    #[test]
+    fn camera_duplicates_are_per_connection() {
+        let mut k = kitchen();
+        let swing = || CameraEvent::Swing { item: "knife".into() };
+        k.handle_camera(1, &cam(1000, 10, swing()));
+        assert_eq!(k.handle_camera(1, &cam(1000, 10, swing())), Handled::Duplicate);
+        // 別のカメラのプログラム（つながりが別）は、seq が小さくても受け付ける
+        assert!(matches!(k.handle_camera(2, &cam(1000, 3, swing())), Handled::Accepted(_)));
+        assert!(matches!(k.handle_camera(1, &cam(1001, 11, swing())), Handled::Accepted(_)));
+        assert!(matches!(k.handle_camera(2, &cam(1001, 4, swing())), Handled::Accepted(_)));
+        // 起動し直してつなぎ直した（新しいつながり）：seq は 1 から
+        assert!(matches!(k.handle_camera(3, &cam(5000, 1, swing())), Handled::Accepted(_)));
+    }
+
+    #[test]
+    fn reset_clears_food_but_keeps_fire() {
+        let mut k = kitchen();
+        k.handle(&msg(SALT, 100, 1, shake(1.0)));
+        k.handle(&msg(KNOB, 100, 1, knob(2)));
+        k.handle_camera(1, &cam(1000, 1, CameraEvent::Cut { item: "carrot".into(), count: 4 }));
+        k.handle_camera(1, &cam(1100, 2, CameraEvent::Add { item: "carrot".into(), zone: "pan".into(), count: 4 }));
+        // 火はつまみの位置のままなので、リセットのあとに今の火をもう一度伝える
+        assert_eq!(k.reset(), vec![ServerEvent::Reset, ServerEvent::Fire { level: 2 }]);
+        assert_eq!(k.seasoning_g(Role::Salt), 0.0);
+        assert_eq!(k.pieces("carrot"), 0);
+        assert_eq!(k.in_zone("pan", "carrot"), 0);
+        assert_eq!(k.fire(), 2);
+        // 次の人の塩は 0 から数える
+        assert_eq!(
+            k.handle(&msg(SALT, 200, 2, shake(1.0))),
+            Handled::Accepted(vec![ServerEvent::Season { item: "salt".into(), amount_g: 0.5, total_g: 0.5 }])
+        );
+        k.handle(&msg(KNOB, 300, 2, knob(0)));
+        assert_eq!(k.reset(), vec![ServerEvent::Reset]);
     }
 
     #[test]
