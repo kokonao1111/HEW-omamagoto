@@ -1,0 +1,2331 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>おままごとキッチン画面</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+  /* 展示の画面（モニターに全画面で映す）。見た目は 1 つに決めている */
+  :root {
+    color-scheme: dark;
+    --bg: #1d1916;
+    --ink: #fff8ef;
+    --muted: #d9cbbb;
+    --panel: rgba(28, 23, 19, 0.86);
+    --line: rgba(255, 240, 220, 0.16);
+    --accent: #ff8a3d;
+    --accent-ink: #2a1406;
+    --ok: #7fd18b;
+    --warn: #ffc65c;
+    --font: "Zen Maru Gothic", "Hiragino Maru Gothic ProN", "Yu Gothic", sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, monospace;
+  }
+  html, body { height: 100%; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font); overflow: hidden; }
+  #view { position: fixed; inset: 0; }
+  #view canvas { display: block; width: 100%; height: 100%; }
+  .hud { position: fixed; pointer-events: none; }
+  .hud-top { top: calc(env(safe-area-inset-top, 0px) + 14px); left: 16px; right: 16px; display: flex; justify-content: space-between; gap: 12px; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 999px;
+    background: var(--panel); border: 1px solid var(--line); font-size: 13px; font-weight: 700; letter-spacing: 0.02em;
+  }
+  .pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+  .pill[data-s="ok"] i { background: var(--ok); }
+  .pill[data-s="retry"] i { background: var(--warn); }
+  .pill[data-s="demo"] i { background: var(--accent); }
+  #season { font-variant-numeric: tabular-nums; }
+  .toast {
+    top: calc(env(safe-area-inset-top, 0px) + 60px); right: 16px; padding: 10px 16px; border-radius: 14px;
+    background: var(--panel); border: 1px solid var(--line); font-size: clamp(15px, 1.6vw, 22px); font-weight: 700;
+    transition: opacity .25s, transform .25s;
+  }
+  .toast.out { opacity: 0; transform: translateY(-6px); }
+  .card {
+    left: 21%; top: 16%; transform: translateX(-50%); min-width: min(320px, calc(100vw - 32px)); padding: 18px 28px 20px;
+    border-radius: 22px; text-align: center; background: rgba(255, 248, 239, 0.94); color: #3a2414;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35); transition: opacity .35s, transform .35s;
+  }
+  .card.out { opacity: 0; transform: translate(-50%, -12px); }
+  @media (max-width: 700px) { .card { left: 50%; top: 10%; } }
+  .card.dish { padding: 14px 22px 16px; }
+  .dish-title { font-size: clamp(22px, 2.6vw, 36px); font-weight: 900; color: #d9561c; letter-spacing: 0.06em; }
+  .card.dish { transition: opacity .35s, transform .35s, left .8s cubic-bezier(.5,0,.2,1), top .8s cubic-bezier(.5,0,.2,1); }
+  .card.dish canvas { display: block; width: clamp(220px, 24vw, 380px); height: auto; margin: 10px auto 0; border-radius: 14px; }
+  .card.dish.eat { left: 76%; top: 6%; transform: translateX(-50%) scale(0.82); }
+  body[data-view="guest"] .card.dish.eat { left: 79%; top: 10%; transform: translateX(-50%) scale(0.95); }
+  body[data-view="guest"] .card:not(.dish) { left: 21%; top: 12%; }
+  .card.dish .wait { width: clamp(220px, 24vw, 380px); aspect-ratio: 4 / 3; margin: 10px auto 0; border-radius: 14px;
+    background: linear-gradient(110deg, #efe3d3 30%, #f8efe4 50%, #efe3d3 70%) 0 0 / 200% 100%; animation: shimmer 1.2s linear infinite; }
+  @keyframes shimmer { to { background-position: -200% 0; } }
+  .card .score { font-size: clamp(48px, 7vw, 96px); font-weight: 900; line-height: 1; color: #d9561c; font-variant-numeric: tabular-nums; }
+  .card .score small { font-size: 0.4em; margin-left: 4px; color: #3a2414; }
+  .card p { margin: 10px 0 0; font-size: clamp(18px, 2.2vw, 30px); font-weight: 700; }
+  .card .note { font-size: 12px; font-weight: 500; color: #8a6a52; margin-top: 6px; }
+  #panel-toggle {
+    position: fixed; right: 16px; bottom: calc(env(safe-area-inset-bottom, 0px) + 16px); z-index: 3;
+    font: 700 13px var(--font); color: var(--ink); background: var(--panel); border: 1px solid var(--line);
+    border-radius: 999px; padding: 8px 14px; cursor: pointer;
+  }
+  #panel {
+    position: fixed; right: 16px; bottom: calc(env(safe-area-inset-bottom, 0px) + 60px); z-index: 3;
+    width: min(340px, calc(100vw - 32px)); max-height: calc(100% - 140px); overflow-y: auto;
+    background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px;
+    display: grid; gap: 12px; backdrop-filter: blur(6px);
+  }
+  #panel h2 { margin: 0; font-size: 14px; letter-spacing: 0.04em; color: var(--muted); }
+  #panel .row { display: flex; flex-wrap: wrap; gap: 6px; }
+  #panel button {
+    font: 700 13px var(--font); color: var(--ink); background: rgba(255, 255, 255, 0.07); border: 1px solid var(--line);
+    border-radius: 10px; padding: 7px 10px; cursor: pointer;
+  }
+  #panel button:hover { background: rgba(255, 255, 255, 0.14); }
+  #panel button.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  #panel label { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  #panel .kbd { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  #panel .url { font-family: var(--mono); font-size: 11px; color: var(--muted); word-break: break-all; }
+  .fallback { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px; text-align: center; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div id="view"></div>
+<div class="hud hud-top">
+  <span class="pill" id="status" data-s="demo"><i></i><span id="status-text">デモ再生中</span></span>
+  <span class="pill" id="season" hidden></span>
+</div>
+<div class="hud toast out" id="toast"></div>
+<div class="hud card dish out" id="dish-card">
+  <div class="dish-title" id="dish-title">できあがり！</div>
+  <div class="wait" id="dish-wait" hidden></div>
+  <canvas id="dish-canvas" width="640" height="480"></canvas>
+  <p id="dish-name"></p>
+</div>
+<div class="hud card out" id="card">
+  <div class="score"><span id="score-num">0</span><small>点</small></div>
+  <p id="score-comment"></p>
+  <div class="note" id="score-note" hidden>デモ用の仮の点数（本番はサーバーが採点する）</div>
+</div>
+<button id="panel-toggle" type="button">操作パネル</button>
+<aside id="panel" hidden>
+  <h2>イベントを送る（サーバーの代わり）</h2>
+  <div class="row">
+    <button type="button" data-act="swing">振り下ろす <span class="kbd">K</span></button>
+    <button type="button" data-act="cut">切る <span class="kbd">C</span></button>
+    <button type="button" data-act="add">フライパンへ <span class="kbd">A</span></button>
+  </div>
+  <div class="row">
+    <button type="button" data-act="salt">塩 <span class="kbd">S</span></button>
+    <button type="button" data-act="pepper">こしょう <span class="kbd">P</span></button>
+  </div>
+  <div class="row" id="fire-row">
+    <button type="button" data-fire="0">切 <span class="kbd">0</span></button>
+    <button type="button" data-fire="1">弱 <span class="kbd">1</span></button>
+    <button type="button" data-fire="2">中 <span class="kbd">2</span></button>
+    <button type="button" data-fire="3">強 <span class="kbd">3</span></button>
+  </div>
+  <div class="row">
+    <button type="button" data-act="serve">提供 <span class="kbd">Enter</span></button>
+    <button type="button" data-act="reset">リセット <span class="kbd">R</span></button>
+    <button type="button" data-act="demo" id="demo-btn">デモ再生 <span class="kbd">D</span></button>
+  </div>
+  <h2>料理の写真を試す（提供）</h2>
+  <div class="row">
+    <button type="button" data-dish="good">おいしい</button>
+    <button type="button" data-dish="burnt">こげた</button>
+    <button type="button" data-dish="undercooked">生焼け</button>
+    <button type="button" data-dish="salty">しょっぱい</button>
+  </div>
+  <div class="row" id="view-row">
+    <button type="button" id="open-guest">お客さんの画面を開く</button>
+    <button type="button" id="open-kitchen">キッチンの画面にする</button>
+  </div>
+  <label><input type="checkbox" id="gen"> 料理の写真を画像生成で作る（サーバーの提供では自動でオン）</label>
+  <label><input type="checkbox" id="mouse-knife"> マウスで包丁を動かす（クリックで振り下ろす）</label>
+  <label><input type="checkbox" id="sound"> 音を出す</label>
+  <div class="url">サーバー: <span id="ws-url"></span></div>
+</aside>
+<div class="fallback" id="fallback" hidden><p>3D を読み込めませんでした。インターネットにつながっているか確かめて、読み込み直してください。</p></div>
+
+<script src="dishes/dishes.js"></script>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+} }
+</script>
+<script type="module">
+import * as THREE from "three";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
+import { RoundedBoxGeometry } from "three/addons/geometries/RoundedBoxGeometry.js";
+import { RGBELoader } from "three/addons/loaders/RGBELoader.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { EffectComposer } from "three/addons/postprocessing/EffectComposer.js";
+import { RenderPass } from "three/addons/postprocessing/RenderPass.js";
+import { GTAOPass } from "three/addons/postprocessing/GTAOPass.js";
+import { UnrealBloomPass } from "three/addons/postprocessing/UnrealBloomPass.js";
+import { ShaderPass } from "three/addons/postprocessing/ShaderPass.js";
+import { OutputPass } from "three/addons/postprocessing/OutputPass.js";
+import { SMAAPass } from "three/addons/postprocessing/SMAAPass.js";
+
+// =====================================================================
+//  おままごとキッチンの画面（three.js の試作）
+//  サーバーから要件定義書 6.4 のイベントを WebSocket で受けて、3D の演出を出す。判断はしない。
+//  つながっていないときはデモを流す。座標は mm（x 右・y 上・z 手前）。天板の上面が y = 0
+// =====================================================================
+const $ = (id) => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+const WS_URL = params.get("ws") || "ws://localhost:9000/screen";
+// 料理の写真を作る中継サーバー（screen/dish_server.py）。API キーはここだけが持つ
+// サーバーから開いたページなら同じサーバーの /dish、ファイルとして開いたなら localhost:9001
+const DISH_URL = params.get("dish") || (location.protocol.startsWith("http") ? new URL("/dish", location.href).href : "http://localhost:9001/dish");
+const DISH_WAIT = Number(params.get("dishwait")) || 45;   // 画像生成を待つ秒数。過ぎたら用意した写真を出す
+$("ws-url").textContent = WS_URL;
+if (params.get("panel") === "0") $("panel-toggle").hidden = true;
+// 画面の種類: kitchen = キッチンだけ / guest = 食べるお客さんだけ / all = 1 画面で全部（テスト用）
+const VIEW = ["kitchen", "guest"].includes(params.get("view")) ? params.get("view") : "all";
+document.body.dataset.view = VIEW;
+if (VIEW === "guest") $("panel-toggle").hidden = true;
+document.title = { kitchen: "キッチンの画面", guest: "お客さんの画面", all: "おままごとキッチン画面" }[VIEW];
+// 2 つの画面のやり取り（同じ PC・同じアドレスで開いた窓どうし）
+let bus = null;
+try { bus = new BroadcastChannel("omamagoto-screen"); } catch (e) { /* 使えない環境では 1 画面で使う */ }
+const D0 = new THREE.Vector3(6000, 0, 0);   // お客さんの席（キッチンから離れた所に置く）
+if (params.get("gen") === "1") $("gen").checked = true;
+
+// まな板座標（0〜1）→ 画面の位置。実物のキッチンと同じ配置（設計書の P と同じ数字）
+const BOARD = { x0: 90, y0: 90, w: 300, d: 220, t: 20 };
+const V_FROM_FRONT = true;   // まな板座標の y = 0 が手前の縁（キャリブレーションで決める向き）
+function boardToWorld(u, v, h = BOARD.t) {
+  const ym = BOARD.y0 + (V_FROM_FRONT ? v : 1 - v) * BOARD.d;
+  return new THREE.Vector3(BOARD.x0 + u * BOARD.w, h, -ym);
+}
+const PAN_C = new THREE.Vector3(900, 43, -210);      // フライパンの底の真ん中（右のバーナーの上。五徳の上面は 38.5）
+const PLATE_C = new THREE.Vector3(490, 0, -180);
+const SERVE_C = new THREE.Vector3(645, 0, -870);     // 料理を出す所（奥の受け渡し口）
+
+// ---------------- レンダラー ----------------
+const view = $("view");
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+} catch (e) {
+  $("fallback").hidden = false;
+  throw e;
+}
+renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+view.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x2b231d);
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environmentIntensity = 0.5;
+
+const camera = new THREE.PerspectiveCamera(38, 16 / 9, 10, 9000);
+const CAM_POS = VIEW === "guest" ? D0.clone().add(new THREE.Vector3(0, 430, 820)) : new THREE.Vector3(525, 640, 600);
+const CAM_LOOK = VIEW === "guest" ? D0.clone().add(new THREE.Vector3(0, 170, -140)) : new THREE.Vector3(525, 130, -420);
+const camShake = new THREE.Vector3();
+
+// 窓からの光（左上の奥）と、部屋の明かり
+const sun = new THREE.DirectionalLight(0xfff1de, 2.6);
+if (VIEW === "guest") {
+  sun.position.copy(D0).add(new THREE.Vector3(-700, 1500, 700));
+  sun.target.position.copy(D0);
+} else {
+  sun.position.set(-500, 1500, 500);
+  sun.target.position.set(560, 0, -330);
+}
+sun.castShadow = true;
+sun.shadow.mapSize.set(4096, 4096);
+Object.assign(sun.shadow.camera, { left: -1100, right: 1100, top: 1100, bottom: -1100, near: 200, far: 4200 });
+sun.shadow.bias = -0.0004;
+sun.shadow.normalBias = 0.6;
+scene.add(sun, sun.target);
+scene.add(new THREE.HemisphereLight(0xfff4e6, 0x6b5a4c, 0.55));
+const warm = new THREE.PointLight(0xffb36b, 0.0, 900, 1.6);   // 受け渡し口の向こうの明かり
+warm.position.set(645, 380, -1300);
+warm.intensity = 60000;
+scene.add(warm);
+const fireGlow = new THREE.PointLight(0xff7a2a, 0, 420, 1.8);
+fireGlow.position.copy(PAN_C).add(new THREE.Vector3(0, -14, 0));
+scene.add(fireGlow);
+
+// ---------------- 小さな道具 ----------------
+function rng(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s + 0x6d2b79f5) >>> 0;
+    let t = s;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function canvasTex(w, h, draw, { srgb = true, repeat } = {}) {
+  const c = document.createElement("canvas");
+  c.width = w;
+  c.height = h;
+  draw(c.getContext("2d"), w, h);
+  const t = new THREE.CanvasTexture(c);
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  if (repeat) {
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(repeat[0], repeat[1]);
+  }
+  return t;
+}
+const phys = (o) => new THREE.MeshPhysicalMaterial(o);
+const stdm = (o) => new THREE.MeshStandardMaterial(o);
+function shadowAll(o, cast = true, recv = true) {
+  o.traverse((m) => {
+    if (m.isMesh) {
+      m.castShadow = cast;
+      m.receiveShadow = recv;
+    }
+  });
+  return o;
+}
+const ease = {
+  io: (k) => (k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2),
+  out: (k) => 1 - Math.pow(1 - k, 3),
+  in: (k) => k * k * k,
+  back: (k) => {
+    const c1 = 1.70158, c3 = c1 + 1;
+    return 1 + c3 * Math.pow(k - 1, 3) + c1 * Math.pow(k - 1, 2);
+  },
+};
+const tweens = [];
+function tween(dur, fn, done, delay = 0) {
+  const tw = { t: -delay, dur, fn, done };
+  tweens.push(tw);
+  return tw;
+}
+function stepTweens(dt) {
+  for (let i = tweens.length - 1; i >= 0; i--) {
+    const tw = tweens[i];
+    tw.t += dt;
+    if (tw.t < 0) continue;
+    const k = Math.min(1, tw.t / tw.dur);
+    tw.fn(k);
+    if (k >= 1) {
+      tweens.splice(i, 1);
+      if (tw.done) tw.done();
+    }
+  }
+}
+const later = (sec, fn) => tween(0.0001, () => {}, fn, sec);
+
+// ---------------- 質感（絵を描いて作る） ----------------
+const stoneTex = canvasTex(1024, 1024, (g, w, h) => {
+  const r = rng(7);
+  g.fillStyle = "#e9e3d9";
+  g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 26000; i++) {
+    const v = 200 + r() * 50;
+    g.fillStyle = `rgba(${v},${v - 6},${v - 14},${0.25 + r() * 0.35})`;
+    g.fillRect(r() * w, r() * h, 1 + r() * 2, 1 + r() * 2);
+  }
+  g.filter = "blur(2px)";
+  for (let i = 0; i < 7; i++) {
+    g.strokeStyle = `rgba(150,138,124,${0.08 + r() * 0.08})`;
+    g.lineWidth = 1 + r() * 3;
+    g.beginPath();
+    let x = r() * w, y = r() * h;
+    g.moveTo(x, y);
+    for (let k = 0; k < 6; k++) {
+      x += (r() - 0.3) * 260;
+      y += (r() - 0.5) * 160;
+      g.quadraticCurveTo(x - 60, y + 40, x, y);
+    }
+    g.stroke();
+  }
+  g.filter = "none";
+}, { repeat: [2.2, 1] });
+
+const woodTex = canvasTex(1024, 768, (g, w, h) => {
+  const r = rng(11);
+  const grd = g.createLinearGradient(0, 0, 0, h);
+  grd.addColorStop(0, "#dcb27c");
+  grd.addColorStop(1, "#cfa069");
+  g.fillStyle = grd;
+  g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 150; i++) {
+    const y = r() * h, amp = 2 + r() * 10, per = 200 + r() * 500, ph = r() * 6;
+    g.strokeStyle = `rgba(${120 + r() * 40},${70 + r() * 30},${30 + r() * 20},${0.12 + r() * 0.2})`;
+    g.lineWidth = 0.6 + r() * 2.4;
+    g.beginPath();
+    for (let x = 0; x <= w; x += 8) g.lineTo(x, y + Math.sin(x / per * 6.28 + ph) * amp);
+    g.stroke();
+  }
+  for (let i = 0; i < 5; i++) {   // 包丁の跡
+    g.strokeStyle = "rgba(255,240,215,0.18)";
+    g.lineWidth = 1;
+    g.beginPath();
+    const x = 250 + r() * 500, y = 200 + r() * 300;
+    g.moveTo(x, y);
+    g.lineTo(x + 60 + r() * 80, y + (r() - 0.5) * 40);
+    g.stroke();
+  }
+});
+
+function tilePainter(bump) {
+  return (g, w, h) => {
+    const r = rng(bump ? 3 : 3);
+    const tw = w / 4, th = h / 8, gr = 6;
+    g.fillStyle = bump ? "#000" : "#cbc3b6";
+    g.fillRect(0, 0, w, h);
+    for (let row = 0; row < 8; row++) {
+      for (let col = -1; col < 5; col++) {
+        const x = col * tw + (row % 2) * tw / 2, y = row * th;
+        if (bump) {
+          const grd = g.createLinearGradient(0, y, 0, y + th);
+          grd.addColorStop(0, "#d8d8d8");
+          grd.addColorStop(0.5, "#ffffff");
+          grd.addColorStop(1, "#cfcfcf");
+          g.fillStyle = grd;
+        } else {
+          const v = 240 + r() * 10;
+          g.fillStyle = `rgb(${v},${v - 3},${v - 9})`;
+        }
+        g.beginPath();
+        g.roundRect(x + gr / 2, y + gr / 2, tw - gr, th - gr, 10);
+        g.fill();
+      }
+    }
+  };
+}
+const tileTex = canvasTex(1024, 1024, tilePainter(false));
+const tileBump = canvasTex(1024, 1024, tilePainter(true), { srgb: false });
+for (const t of [tileTex, tileBump]) t.wrapS = t.wrapT = THREE.RepeatWrapping;
+
+const carrotSkin = canvasTex(256, 512, (g, w, h) => {
+  const r = rng(5);
+  g.fillStyle = "#f07a22";
+  g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 90; i++) {
+    const y = r() * h;
+    g.fillStyle = `rgba(${150 + r() * 60},${50 + r() * 30},10,${0.12 + r() * 0.22})`;
+    g.fillRect(0, y, w, 1 + r() * 2.5);
+  }
+  for (let i = 0; i < 400; i++) {
+    g.fillStyle = `rgba(255,190,120,${r() * 0.15})`;
+    g.fillRect(r() * w, r() * h, 1 + r() * 4, 1);
+  }
+});
+carrotSkin.wrapS = carrotSkin.wrapT = THREE.RepeatWrapping;
+const carrotBump = canvasTex(256, 512, (g, w, h) => {
+  const r = rng(5);
+  g.fillStyle = "#808080";
+  g.fillRect(0, 0, w, h);
+  for (let i = 0; i < 90; i++) {
+    g.fillStyle = `rgba(20,20,20,${0.3 + r() * 0.5})`;
+    g.fillRect(0, r() * h, w, 1 + r() * 2.5);
+  }
+}, { srgb: false });
+carrotBump.wrapS = carrotBump.wrapT = THREE.RepeatWrapping;
+const carrotCut = canvasTex(256, 256, (g, w, h) => {
+  const c = w / 2;
+  const grd = g.createRadialGradient(c, c, 0, c, c, c);
+  grd.addColorStop(0, "#ffc27a");
+  grd.addColorStop(0.42, "#ffb060");
+  grd.addColorStop(0.5, "#f59a3c");
+  grd.addColorStop(0.56, "#ff9f45");
+  grd.addColorStop(0.93, "#f0812b");
+  grd.addColorStop(1, "#d8641a");
+  g.fillStyle = grd;
+  g.fillRect(0, 0, w, h);
+  g.strokeStyle = "rgba(255,220,160,0.25)";
+  for (let a = 0; a < 24; a++) {
+    const t = (a / 24) * Math.PI * 2;
+    g.beginPath();
+    g.moveTo(c + Math.cos(t) * c * 0.1, c + Math.sin(t) * c * 0.1);
+    g.lineTo(c + Math.cos(t) * c * 0.48, c + Math.sin(t) * c * 0.48);
+    g.stroke();
+  }
+});
+const softDot = canvasTex(64, 64, (g, w) => {
+  const grd = g.createRadialGradient(w / 2, w / 2, 0, w / 2, w / 2, w / 2);
+  grd.addColorStop(0, "rgba(255,255,255,1)");
+  grd.addColorStop(0.4, "rgba(255,255,255,0.5)");
+  grd.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = grd;
+  g.fillRect(0, 0, w, w);
+});
+const grainDot = canvasTex(32, 32, (g, w) => {
+  g.fillStyle = "#fff";
+  g.beginPath();
+  g.arc(w / 2, w / 2, w / 2 - 1, 0, Math.PI * 2);
+  g.fill();
+});
+
+// ---------------- キッチン（動かない物） ----------------
+const stoneMat = phys({ map: stoneTex, roughness: 0.32, clearcoat: 0.35, clearcoatRoughness: 0.4 });
+const counter = new THREE.Mesh(new RoundedBoxGeometry(2400, 40, 1000, 3, 4), stoneMat);
+counter.position.set(525, -20, -460);
+scene.add(shadowAll(counter, false, true));
+// 天板の下の扉（セージグリーン）
+const doorMat = stdm({ color: 0x8fb39e, roughness: 0.55 });
+const carcass = new THREE.Mesh(new THREE.BoxGeometry(2400, 1800, 40), stdm({ color: 0x6f907e, roughness: 0.7 }));
+carcass.position.set(525, -940, 4);
+scene.add(carcass);
+for (let i = 0; i < 6; i++) {
+  const d = new THREE.Mesh(new RoundedBoxGeometry(386, 700, 20, 3, 4), doorMat);
+  d.position.set(-675 + i * 400, -400, 30);
+  scene.add(shadowAll(d, false, true));
+  const h = new THREE.Mesh(new RoundedBoxGeometry(140, 12, 14, 2, 5), phys({ color: 0xb8bcc0, metalness: 1, roughness: 0.3 }));
+  h.position.set(-675 + i * 400, -80, 48);
+  scene.add(h);
+}
+
+// 奥の壁（白いタイル）と受け渡し口
+const WALL_Z = -720, OPEN = { x0: 330, x1: 960, y1: 520 };
+const tileMat = phys({ map: tileTex, bumpMap: tileBump, bumpScale: 2.2, roughness: 0.18, clearcoat: 0.6, clearcoatRoughness: 0.15 });
+function wallPanel(x0, x1, y0, y1) {
+  const w = x1 - x0, h = y1 - y0;
+  const geo = new THREE.PlaneGeometry(w, h);
+  const uv = geo.attributes.uv, pos = geo.attributes.position;
+  for (let i = 0; i < uv.count; i++) uv.setXY(i, (pos.getX(i) + x0 + w / 2) / 600, (pos.getY(i) + y0 + h / 2) / 600);
+  const m = new THREE.Mesh(geo, tileMat);
+  m.position.set(x0 + w / 2, y0 + h / 2, WALL_Z);
+  m.receiveShadow = true;
+  scene.add(m);
+}
+wallPanel(-900, OPEN.x0, 0, 1400);
+wallPanel(OPEN.x1, 1950, 0, 1400);
+wallPanel(OPEN.x0, OPEN.x1, OPEN.y1, 1400);
+const jambMat = stdm({ color: 0xf1ece4, roughness: 0.7 });
+for (const [x, w] of [[OPEN.x0 - 5, 10], [OPEN.x1 + 5, 10]]) {
+  const j = new THREE.Mesh(new THREE.BoxGeometry(w, OPEN.y1, 110), jambMat);
+  j.position.set(x, OPEN.y1 / 2, WALL_Z - 55);
+  scene.add(shadowAll(j, true, true));
+}
+const head = new THREE.Mesh(new THREE.BoxGeometry(OPEN.x1 - OPEN.x0 + 20, 10, 110), jambMat);
+head.position.set((OPEN.x0 + OPEN.x1) / 2, OPEN.y1 + 5, WALL_Z - 55);
+scene.add(shadowAll(head, true, true));
+
+// 受け渡し口の向こうの部屋（ぼかした絵）
+const roomTex = canvasTex(2048, 1024, (g, w, h) => {
+  const grd = g.createLinearGradient(0, 0, 0, h);
+  grd.addColorStop(0, "#9c7656");
+  grd.addColorStop(0.55, "#c79a70");
+  grd.addColorStop(1, "#5a3f2c");
+  g.fillStyle = grd;
+  g.fillRect(0, 0, w, h);
+  g.filter = "blur(18px)";
+  g.fillStyle = "rgba(255,236,200,0.85)";
+  g.fillRect(w * 0.12, h * 0.12, w * 0.22, h * 0.42);
+  g.fillRect(w * 0.66, h * 0.12, w * 0.22, h * 0.42);
+  g.fillStyle = "rgba(70,48,32,0.9)";
+  g.fillRect(w * 0.2, h * 0.66, w * 0.6, h * 0.06);
+  g.fillRect(w * 0.26, h * 0.72, w * 0.02, h * 0.28);
+  g.fillRect(w * 0.72, h * 0.72, w * 0.02, h * 0.28);
+  g.filter = "blur(10px)";
+  const r = rng(21);
+  for (let i = 0; i < 14; i++) {
+    g.fillStyle = `rgba(255,${190 + r() * 50},${120 + r() * 60},${0.3 + r() * 0.4})`;
+    g.beginPath();
+    g.arc(r() * w, h * (0.08 + r() * 0.3), 18 + r() * 40, 0, Math.PI * 2);
+    g.fill();
+  }
+  g.filter = "none";
+});
+const room = new THREE.Mesh(new THREE.PlaneGeometry(4200, 2100), new THREE.MeshBasicMaterial({ map: roomTex, color: 0xd8d0c8 }));
+room.position.set(645, 150, -2500);
+scene.add(room);
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(5000, 2600), stdm({ color: 0x4a3526, roughness: 0.8 }));
+floor.rotation.x = -Math.PI / 2;
+floor.position.set(645, -850, -1500);
+scene.add(floor);
+
+// まな板
+const boardMat = stdm({ map: woodTex, roughness: 0.62 });
+const board = new THREE.Mesh(new RoundedBoxGeometry(BOARD.w, BOARD.t, BOARD.d, 3, 4), boardMat);
+board.position.copy(boardToWorld(0.5, 0.5, BOARD.t / 2));
+scene.add(shadowAll(board));
+
+// コンロ（黒いガラスの天板、ガスバーナー 2 口、つまみ 2 個）
+const glassBlack = phys({ color: 0x0b0b0d, roughness: 0.35, clearcoat: 0.45, clearcoatRoughness: 0.3, metalness: 0, envMapIntensity: 0.25 });
+const iron = stdm({ color: 0x1d1d1f, roughness: 0.55, metalness: 0.6 });
+const steel = phys({ color: 0xc9cdd1, metalness: 1, roughness: 0.28 });
+const cooktop = new THREE.Mesh(new RoundedBoxGeometry(400, 8, 300, 3, 3), glassBlack);
+cooktop.position.set(800, 4, -210);
+scene.add(shadowAll(cooktop, false, true));
+const burners = [];
+for (const bx of [700, 900]) {
+  const g = new THREE.Group();
+  g.position.set(bx, 8, -210);
+  const ring = new THREE.Mesh(new THREE.CylinderGeometry(44, 46, 8, 48), steel);
+  ring.position.y = 4;
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(28, 30, 7, 48), iron);
+  cap.position.y = 11;
+  g.add(ring, cap);
+  const grate = new THREE.Group();
+  const gRing = new THREE.Mesh(new THREE.TorusGeometry(82, 3.6, 10, 64), iron);
+  gRing.rotation.x = Math.PI / 2;
+  gRing.position.y = 24;
+  grate.add(gRing);
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(64, 9, 7), iron);
+    arm.position.set(Math.cos(a) * 62, 26, Math.sin(a) * 62);
+    arm.rotation.y = -a;
+    grate.add(arm);
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(7, 24, 7), iron);
+    foot.position.set(Math.cos(a) * 82, 12, Math.sin(a) * 82);
+    grate.add(foot);
+  }
+  g.add(grate);
+  scene.add(shadowAll(g));
+  burners.push(g);
+}
+const knobs = [];
+for (const kx of [700, 900]) {
+  const k = new THREE.Group();
+  k.position.set(kx, 8, -85);
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(17, 18, 16, 40), phys({ color: 0x9a9fa4, metalness: 1, roughness: 0.35 }));
+  body.position.y = 8;
+  const mark = new THREE.Mesh(new THREE.BoxGeometry(3, 2, 14), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  mark.position.set(0, 17, -6);
+  k.add(body, mark);
+  scene.add(shadowAll(k));
+  knobs.push(k);
+}
+
+// 炎（右のバーナー。青い炎の輪）
+function flameRing(center) {
+  const geo = new THREE.ConeGeometry(4.2, 24, 8, 1, true);
+  geo.translate(0, 12, 0);
+  const col = [];
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const t = pos.getY(i) / 24;
+    const c = new THREE.Color().setRGB(0.25 + 0.5 * (1 - t), 0.45 + 0.35 * (1 - t), 1.0).multiplyScalar(1 - t * 0.95);
+    col.push(c.r, c.g, c.b);
+  }
+  geo.setAttribute("color", new THREE.Float32BufferAttribute(col, 3));
+  const mat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+  const n = 26;
+  const mesh = new THREE.InstancedMesh(geo, mat, n);
+  mesh.position.copy(center);
+  mesh.visible = false;
+  mesh.userData.n = n;
+  mesh.userData.noAO = true;
+  scene.add(mesh);
+  return mesh;
+}
+const flames = flameRing(new THREE.Vector3(900, 26, -210));
+const dummy = new THREE.Object3D();
+
+// フライパン
+const pan = new THREE.Group();
+pan.position.copy(PAN_C);
+{
+  const prof = [[0, 0], [84, 0], [89, 2], [95, 28], [98, 32], [99.5, 34]].map((p) => new THREE.Vector2(p[0], p[1]));
+  const body = new THREE.Mesh(new THREE.LatheGeometry(prof, 72), phys({ color: 0x1e1e20, roughness: 0.55, metalness: 0.1, clearcoat: 0.25, clearcoatRoughness: 0.5, side: THREE.DoubleSide }));
+  pan.add(body);
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(84, 84, 2, 72), phys({ color: 0xa8acb0, metalness: 1, roughness: 0.4 }));
+  base.position.y = -1.8;
+  pan.add(base);
+  const rim = new THREE.Mesh(new THREE.TorusGeometry(99.5, 1.6, 8, 96), steel);
+  rim.rotation.x = Math.PI / 2;
+  rim.position.y = 34;
+  pan.add(rim);
+  const dir = new THREE.Vector3(1, 0, 0.42).normalize();
+  const neckA = dir.clone().multiplyScalar(97).setY(26), neckB = dir.clone().multiplyScalar(140).setY(31);
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(5, 6, neckA.distanceTo(neckB), 16), steel);
+  neck.position.copy(neckA).add(neckB).multiplyScalar(0.5);
+  neck.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), neckB.clone().sub(neckA).normalize());
+  pan.add(neck);
+  const grip = new THREE.Mesh(new RoundedBoxGeometry(130, 16, 24, 3, 7), stdm({ color: 0x1b1b1c, roughness: 0.7 }));
+  grip.position.copy(dir.clone().multiplyScalar(200).setY(34));
+  grip.rotation.y = -Math.atan2(dir.z, dir.x);
+  grip.rotation.z = 0.07;
+  pan.add(grip);
+}
+scene.add(shadowAll(pan));
+
+// 皿
+const plate = new THREE.Group();
+{
+  const prof = [[0, 3], [56, 3], [64, 6], [72, 13], [74, 14.5], [72.5, 15]].map((p) => new THREE.Vector2(p[0], p[1]));
+  const m = phys({ color: 0xfbfaf6, roughness: 0.22, clearcoat: 1, clearcoatRoughness: 0.08, side: THREE.DoubleSide });
+  plate.add(new THREE.Mesh(new THREE.LatheGeometry(prof, 72), m));
+  const foot = new THREE.Mesh(new THREE.CylinderGeometry(46, 48, 3, 48, 1, true), m);
+  foot.position.y = 1.5;
+  plate.add(foot);
+}
+plate.position.copy(PLATE_C);
+scene.add(shadowAll(plate));
+
+// 料理の写真（札に出す。食べるとひと口ずつ欠けていく）
+const DISHES = window.DISHES || {};
+const DISH_NAMES = { good: "にんじんのグラッセ", burnt: "こげたにんじん", undercooked: "生焼けのにんじん", salty: "しょっぱいにんじん" };
+const COMMENT_DISH = { good: "good", overcooked: "burnt", burnt: "burnt", undercooked: "undercooked", too_salty: "salty" };
+const dishCanvas = document.getElementById("dish-canvas");
+function loadImg(url) {
+  return new Promise((ok, ng) => {
+    const im = new Image();
+    im.onload = () => ok(im);
+    im.onerror = ng;
+    im.src = url;
+  });
+}
+// 写真をキャンバスに描く（キャンバスの縦横比は写真に合わせる。横長は 4:3 まで）
+function drawDish(im) {
+  const w = 640, h = Math.round(640 * Math.min(1, Math.max(0.75, im.naturalHeight / im.naturalWidth)));
+  dishCanvas.width = w;
+  dishCanvas.height = h;
+  const g = dishCanvas.getContext("2d");
+  g.globalCompositeOperation = "source-over";
+  const s = Math.max(w / im.naturalWidth, h / im.naturalHeight);
+  g.drawImage(im, (w - im.naturalWidth * s) / 2, (h - im.naturalHeight * s) / 2, im.naturalWidth * s, im.naturalHeight * s);
+}
+// i 口目（全部で n 口）。上から下へ、ぎざぎざの丸でかじる。最後のひと口で全部なくなる
+function bite(i, n) {
+  const g = dishCanvas.getContext("2d"), w = dishCanvas.width, h = dishCanvas.height;
+  g.globalCompositeOperation = "destination-out";
+  if (i === n - 1) {
+    g.fillRect(0, 0, w, h);
+    return;
+  }
+  const cx = w * (0.25 + 0.5 * ((i * 0.618) % 1)), cy = h * (0.1 + (0.8 * i) / Math.max(1, n - 1));
+  const R = w * 0.17;
+  for (let k = 0; k < 9; k++) {
+    const b = (k / 9) * Math.PI * 2;
+    g.beginPath();
+    g.arc(cx + Math.cos(b) * R * 0.75, cy + Math.sin(b) * R * 0.75, R * (0.42 + Math.random() * 0.12), 0, Math.PI * 2);
+    g.fill();
+  }
+  g.beginPath();
+  g.arc(cx, cy, R * 0.9, 0, Math.PI * 2);
+  g.fill();
+}
+
+// 電子レンジ（左奥）
+{
+  const g = new THREE.Group();
+  g.position.set(170, 0, -420);
+  const body = new THREE.Mesh(new RoundedBoxGeometry(280, 230, 200, 3, 10), phys({ color: 0xcfd2d4, metalness: 0.7, roughness: 0.35 }));
+  body.position.y = 115;
+  const door = new THREE.Mesh(new RoundedBoxGeometry(180, 160, 6, 2, 5), phys({ color: 0x101214, roughness: 0.05, clearcoat: 1 }));
+  door.position.set(-36, 118, 100);
+  const panel = new THREE.Mesh(new THREE.BoxGeometry(62, 190, 4), phys({ color: 0x1b1d20, roughness: 0.3 }));
+  panel.position.set(100, 115, 100);
+  const dispTex = canvasTex(128, 64, (c, w, h) => {
+    c.fillStyle = "#06120f";
+    c.fillRect(0, 0, w, h);
+    c.fillStyle = "#58f0c8";
+    c.font = "bold 34px 'IBM Plex Mono', monospace";
+    c.textAlign = "center";
+    c.textBaseline = "middle";
+    c.fillText("12:00", w / 2, h / 2 + 2);
+  });
+  const disp = new THREE.Mesh(new THREE.PlaneGeometry(48, 22), new THREE.MeshBasicMaterial({ map: dispTex, toneMapped: false }));
+  disp.position.set(100, 180, 102.5);
+  const handle = new THREE.Mesh(new THREE.CylinderGeometry(4, 4, 130, 16), steel);
+  handle.position.set(64, 118, 110);
+  g.add(body, door, panel, disp, handle);
+  for (let i = 0; i < 4; i++) {
+    const b = new THREE.Mesh(new THREE.CylinderGeometry(7, 7, 4, 24), steel);
+    b.rotation.x = Math.PI / 2;
+    b.position.set(100, 140 - i * 26, 103);
+    g.add(b);
+  }
+  scene.add(shadowAll(g));
+}
+
+// 飾り（ハーブの鉢・木べら立て）。素材が読めたら、鉢は本物の 3D の観葉植物に差し替える
+const decor = {};
+{
+  const pot = new THREE.Group();
+  pot.position.set(-150, 0, -600);
+  const p = new THREE.Mesh(new THREE.CylinderGeometry(62, 48, 110, 40), stdm({ color: 0xc1693f, roughness: 0.85 }));
+  p.position.y = 55;
+  pot.add(p);
+  const r = rng(9);
+  for (let i = 0; i < 40; i++) {
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), stdm({ color: new THREE.Color().setHSL(0.28 + r() * 0.05, 0.5, 0.28 + r() * 0.12), roughness: 0.6 }));
+    leaf.scale.set(22 + r() * 10, 4, 17 + r() * 6);
+    const a = r() * 6.28, rad = r() * 50;
+    leaf.position.set(Math.cos(a) * rad, 130 + r() * 90, Math.sin(a) * rad);
+    leaf.rotation.set(r() * 1.2 - 0.6, a, r() * 1.4 - 0.7);
+    pot.add(leaf);
+  }
+  scene.add(shadowAll(pot));
+  decor.pot = pot;
+  const crock = new THREE.Group();
+  crock.position.set(1210, 0, -600);
+  const c = new THREE.Mesh(new THREE.CylinderGeometry(52, 48, 140, 40), phys({ color: 0xf2efe8, roughness: 0.25, clearcoat: 0.8 }));
+  c.position.y = 70;
+  crock.add(c);
+  for (let i = 0; i < 4; i++) {
+    const s = new THREE.Mesh(new THREE.CylinderGeometry(5, 5, 260, 12), stdm({ color: 0xb9874f, roughness: 0.6 }));
+    s.position.set(-20 + i * 13, 190, (i % 2) * 14 - 7);
+    s.rotation.z = -0.25 + i * 0.15;
+    crock.add(s);
+    const head = new THREE.Mesh(new RoundedBoxGeometry(34, 60, 6, 2, 3), stdm({ color: 0xb9874f, roughness: 0.6 }));
+    head.position.set(-20 + i * 13 + Math.sin(-(-0.25 + i * 0.15)) * 140, 330, (i % 2) * 14 - 7);
+    head.rotation.z = -0.25 + i * 0.15;
+    crock.add(head);
+  }
+  scene.add(shadowAll(crock));
+}
+
+// ---------------- 本物の素材（Poly Haven の CC0 素材。assets/ に置いてある） ----------------
+// 読めなかったときは、上の手描きの質感のまま動く
+const ASSETS = params.get("assets") || "assets/";
+const REAL = params.get("real") !== "0";
+// 受け渡し口の向こうに丸いテーブルの席が見える向き（キッチン）/ ソファの席が見える向き（お客さん）
+const ROT = THREE.MathUtils.degToRad(Number(params.get("hdrirot") ?? (VIEW === "guest" ? 25 : 115)));
+const texLoader2 = new THREE.TextureLoader();
+function loadTex(path, srgb, rep) {
+  return new Promise((ok) => texLoader2.load(ASSETS + path, (tx) => {
+    if (srgb) tx.colorSpace = THREE.SRGBColorSpace;
+    tx.wrapS = tx.wrapT = THREE.RepeatWrapping;
+    if (rep) tx.repeat.set(rep[0], rep[1]);
+    tx.anisotropy = renderer.capabilities.getMaxAnisotropy();
+    ok(tx);
+  }, undefined, () => ok(null)));
+}
+function loadModel(path) {
+  // .gltf が読めないとき（公開ページなど）は、部品を 1 つにまとめた .gltf.json を読む
+  const one = (p) => new Promise((ok) => new GLTFLoader().load(ASSETS + p, (g) => ok(g.scene), undefined, () => ok(null)));
+  return one(path).then((m) => m || one(path + ".json"));
+}
+function useEnv(tex) {
+  tex.mapping = THREE.EquirectangularReflectionMapping;
+  scene.environment = pmrem.fromEquirectangular(tex).texture;
+  scene.environmentIntensity = 0.6;
+  scene.environmentRotation.y = ROT;
+  scene.background = tex;
+  scene.backgroundBlurriness = 0.06;
+  scene.backgroundIntensity = 0.9;
+  scene.backgroundRotation.y = ROT;
+  room.visible = false;
+  floor.visible = false;
+}
+// 置く: 底を y = 0 にそろえ、高さ h（mm）に合わせる。h がなければ実寸（m → mm）
+function place(obj, pos, h, rotY = 0) {
+  obj.scale.setScalar(1000);
+  obj.updateMatrixWorld(true);
+  let box = new THREE.Box3().setFromObject(obj);
+  if (h) {
+    obj.scale.multiplyScalar(h / (box.max.y - box.min.y));
+    obj.updateMatrixWorld(true);
+    box = new THREE.Box3().setFromObject(obj);
+  }
+  const c = box.getCenter(new THREE.Vector3());
+  obj.rotation.y = rotY;
+  const holder = new THREE.Group();
+  obj.position.set(-c.x, -box.min.y, -c.z);
+  holder.add(obj);
+  holder.position.copy(pos);
+  scene.add(shadowAll(holder));
+  return holder;
+}
+async function loadReal() {
+  if (!REAL) return;
+  console.log("素材の読み込み開始");
+  // 1. 本物の部屋の光（カフェの店内）。受け渡し口の向こうの景色にもなる
+  new RGBELoader().load(ASSETS + "hdri/comfy_cafe_2k.hdr", (hdr) => {
+    useEnv(hdr);
+    console.log("HDRI ok");
+  }, undefined, () => {
+    // .hdr が読めないとき（公開ページなど）は、JPEG にした版を使う
+    texLoader2.load(ASSETS + "hdri/comfy_cafe_2k.jpg", (jpg) => {
+      jpg.colorSpace = THREE.SRGBColorSpace;
+      useEnv(jpg);
+      console.log("HDRI（JPEG 版）ok");
+    }, undefined, () => console.warn("部屋の光を読めなかった。手描きの部屋のまま"));
+  });
+  // 2. 壁のタイル（白い長方形のタイル）
+  const tr = [0.75, 0.75];
+  const [td, tn, trr] = await Promise.all([
+    loadTex("textures/long_white_tiles_diff_2k.jpg", true, tr),
+    loadTex("textures/long_white_tiles_nor_gl_2k.jpg", false, tr),
+    loadTex("textures/long_white_tiles_rough_2k.jpg", false, tr),
+  ]);
+  if (td) {
+    Object.assign(tileMat, { map: td, normalMap: tn, roughnessMap: trr, bumpMap: null, roughness: 0.9, clearcoat: 0.35, clearcoatRoughness: 0.25 });
+    tileMat.color.set(0xffffff);
+    tileMat.normalScale.set(1.2, 1.2);
+    tileMat.needsUpdate = true;
+  }
+  // 3. まな板（オーク材）
+  const br = [0.3, 0.3];
+  const [bd, bn, brr] = await Promise.all([
+    loadTex("textures/oak_veneer_01_diff_1k.jpg", true, br),
+    loadTex("textures/oak_veneer_01_nor_gl_1k.jpg", false, br),
+    loadTex("textures/oak_veneer_01_rough_1k.jpg", false, br),
+  ]);
+  if (bd) {
+    Object.assign(boardMat, { map: bd, normalMap: bn, roughnessMap: brr, roughness: 1 });
+    boardMat.color.set(0xf2e2c8);
+    boardMat.needsUpdate = true;
+    const td2 = bd.clone(), tn2 = bn.clone(), tr2 = brr.clone();
+    for (const x of [td2, tn2, tr2]) { x.repeat.set(0.9, 0.9); x.needsUpdate = true; }
+    Object.assign(dining.tableMat, { map: td2, normalMap: tn2, roughnessMap: tr2, roughness: 0.8 });
+    dining.tableMat.color.set(0xb98a5e);
+    dining.tableMat.needsUpdate = true;
+  }
+  // 4. 観葉植物（手描きの鉢と差し替え）とくだもの
+  const plant = await loadModel("models/potted_plant_02/potted_plant_02_1k.gltf");
+  if (plant) {
+    place(plant, new THREE.Vector3(-150, 0, -590), 360, 0.6);
+    decor.pot.visible = false;
+    console.log("植物 ok");
+  }
+  const lemon = await loadModel("models/lemon/lemon_1k.gltf");
+  if (lemon) {
+    place(lemon, new THREE.Vector3(1060, 0, -640), null, 0.4);
+    place(lemon.clone(), new THREE.Vector3(1105, 0, -605), null, 2.1);
+  }
+  const apple = await loadModel("models/food_apple_01/food_apple_01_1k.gltf");
+  if (apple) place(apple, new THREE.Vector3(1035, 0, -585), null, 1.2);
+}
+loadReal();
+
+// ---------------- 調味料の容器 ----------------
+function makeShaker(fill, label) {
+  const g = new THREE.Group();
+  const glassProf = [[0, 0], [20, 0], [21.5, 3], [21.5, 78], [19, 82]].map((p) => new THREE.Vector2(p[0], p[1]));
+  const glass = new THREE.Mesh(new THREE.LatheGeometry(glassProf, 48),
+    phys({ color: 0xffffff, transparent: true, opacity: 0.22, roughness: 0.04, clearcoat: 1, clearcoatRoughness: 0.02, depthWrite: false }));
+  const inner = new THREE.Mesh(new THREE.CylinderGeometry(18.5, 18.5, 46, 32), stdm({ color: fill, roughness: 0.95 }));
+  inner.position.y = 26;
+  const capProf = [[0, 106], [10, 105], [17, 100], [20, 90], [20.5, 80], [19, 79]].map((p) => new THREE.Vector2(p[0], p[1]));
+  const cap = new THREE.Mesh(new THREE.LatheGeometry(capProf, 48), phys({ color: 0xd7dade, metalness: 1, roughness: 0.22, side: THREE.DoubleSide }));
+  g.add(inner, glass, cap);
+  g.userData.label = label;
+  return shadowAll(g);
+}
+const shakers = {
+  salt: { obj: makeShaker(0xf7f5f0, "塩"), home: new THREE.Vector3(455, 0, -385) },
+  pepper: { obj: makeShaker(0x3a3632, "こしょう"), home: new THREE.Vector3(530, 0, -385) },
+};
+for (const s of Object.values(shakers)) {
+  s.obj.position.copy(s.home);
+  s.state = "home";
+  s.shakeLeft = 0;
+  scene.add(s.obj);
+}
+
+// ---------------- 包丁 ----------------
+const knifeMats = [];
+const KNIFE_S = 0.82;   // おもちゃの包丁の大きさに合わせる（実物を測って直す）
+function km(o, M = THREE.MeshPhysicalMaterial) {
+  const m = new M(o);
+  knifeMats.push(m);
+  return m;
+}
+const knife = { root: new THREE.Group(), pivot: new THREE.Group(), body: new THREE.Group(), target: new THREE.Vector3(), yaw: 0, yawT: 0,
+  opacity: 0, opT: 0, seen: false, hideAt: 0, chop: 0, drop: 0 };
+{
+  const s = new THREE.Shape();
+  s.moveTo(0, 0);
+  s.lineTo(150, 0);
+  s.quadraticCurveTo(196, -2, 214, -15);
+  s.quadraticCurveTo(190, -46, 120, -46);
+  s.lineTo(0, -46);
+  s.lineTo(0, 0);
+  const bg = new THREE.ExtrudeGeometry(s, { depth: 1.4, bevelEnabled: true, bevelThickness: 0.7, bevelSize: 0.9, bevelSegments: 2, curveSegments: 24 });
+  bg.translate(0, 0, -0.7);
+  const blade = new THREE.Mesh(bg, km({ color: 0xdfe3e6, metalness: 1, roughness: 0.2, clearcoat: 0.3 }));
+  const bolster = new THREE.Mesh(new RoundedBoxGeometry(12, 30, 10, 2, 2), km({ color: 0xc6cacd, metalness: 1, roughness: 0.3 }));
+  bolster.position.set(-6, -15, 0);
+  const handle = new THREE.Mesh(new RoundedBoxGeometry(112, 26, 20, 3, 7), km({ color: 0x3b2418, roughness: 0.5, clearcoat: 0.5 }));
+  handle.position.set(-68, -17, 0);
+  knife.body.add(blade, bolster, handle);
+  for (const x of [-34, -68, -102]) {
+    const r = new THREE.Mesh(new THREE.CylinderGeometry(2.6, 2.6, 21, 16), km({ color: 0xd0d3d6, metalness: 1, roughness: 0.25 }));
+    r.rotation.x = Math.PI / 2;
+    r.position.set(x, -17, 0);
+    knife.body.add(r);
+  }
+  // 柄尻（x = -124）を回転の中心にする。包丁の真ん中（x = 45）が root に来るように置く
+  knife.pivot.position.x = -169;
+  knife.body.position.x = 124;
+  knife.pivot.add(knife.body);
+  knife.root.add(knife.pivot);
+  knife.root.scale.setScalar(KNIFE_S);
+  knife.root.visible = false;
+  scene.add(shadowAll(knife.root));
+}
+function setKnifeOpacity(o) {
+  for (const m of knifeMats) {
+    m.opacity = o;
+    m.transparent = o < 0.999;
+    m.depthWrite = o > 0.5;
+  }
+  knife.root.visible = o > 0.01;
+}
+
+// ---------------- にんじん ----------------
+const CAR = { L: 150, R: 21 };
+function carR(t) {
+  const body = CAR.R * Math.pow(Math.max(0, 1 - t), 0.78);
+  const top = Math.sin(Math.min(1, t / 0.09) * Math.PI / 2);
+  const ring = 1 - 0.03 * Math.pow(Math.abs(Math.sin(t * Math.PI * 15)), 10);
+  return Math.max(0.7, body * (0.25 + 0.75 * top) * ring);
+}
+const carrotRoot = new THREE.Group();   // まな板の上の物（位置イベントでまとめて動く）
+scene.add(carrotRoot);
+const carrot = { target: new THREE.Vector3(), yawT: 0, yaw: 0, seen: true, hideAt: 0, opacity: 1 };
+let pieces = [];
+
+function buildPiece(t0, t1) {
+  const L = CAR.L, tm = (t0 + t1) / 2, yc = L / 2 - tm * L;
+  const n = Math.max(8, Math.round((t1 - t0) * 70));
+  const pts = [];
+  for (let i = n; i >= 0; i--) {
+    const t = t0 + ((t1 - t0) * i) / n;
+    pts.push(new THREE.Vector2(carR(t), L / 2 - t * L - yc));
+  }
+  const geo = new THREE.LatheGeometry(pts, 44);
+  const uv = geo.attributes.uv, pos = geo.attributes.position;
+  for (let i = 0; i < uv.count; i++) uv.setY(i, ((L / 2 - (pos.getY(i) + yc)) / L) * 2);
+  const skin = phys({ map: carrotSkin, bumpMap: carrotBump, bumpScale: 0.8, roughness: 0.5, sheen: 0.4, sheenColor: new THREE.Color(0xffc48a), transparent: false });
+  const inner = new THREE.Group();
+  inner.rotation.z = Math.PI / 2;                 // 葉の側が -x、先が +x
+  inner.add(new THREE.Mesh(geo, skin));
+  const capMat = phys({ map: carrotCut, roughness: 0.38, clearcoat: 0.6, clearcoatRoughness: 0.3 });
+  const mats = [skin, capMat];
+  if (t0 > 0.001) {
+    const c = new THREE.Mesh(new THREE.CircleGeometry(carR(t0) * 0.995, 40), capMat);
+    c.rotation.x = -Math.PI / 2;
+    c.position.y = L / 2 - t0 * L - yc;
+    inner.add(c);
+  }
+  if (t1 < 0.999) {
+    const c = new THREE.Mesh(new THREE.CircleGeometry(carR(t1) * 0.995, 40), capMat);
+    c.rotation.x = Math.PI / 2;
+    c.position.y = L / 2 - t1 * L - yc;
+    inner.add(c);
+  }
+  if (t0 <= 0.001) {   // 葉
+    const leafMat = phys({ color: 0x4c8a32, roughness: 0.55, sheen: 0.5, sheenColor: new THREE.Color(0xb6e08a) });
+    mats.push(leafMat);
+    const r = rng(17);
+    const topY = L / 2 - yc;
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2 + r();
+      const len = 55 + r() * 30;
+      const sp = 10 + r() * 12;
+      const curve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(0, topY - 2, 0),
+        new THREE.Vector3(Math.cos(a) * sp * 0.5 + 4, topY + len * 0.45, Math.sin(a) * sp * 0.5),
+        new THREE.Vector3(Math.cos(a) * sp + 10, topY + len, Math.sin(a) * sp),
+      ]);
+      inner.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 12, 1.7, 6), leafMat));
+      for (let k = 0; k < 6; k++) {
+        const p = curve.getPoint(0.45 + k * 0.1);
+        const lf = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 6), leafMat);
+        lf.scale.set(7, 2, 3.4);
+        lf.position.copy(p);
+        lf.rotation.set(r() * 2, r() * 6, r() * 2);
+        inner.add(lf);
+      }
+    }
+  }
+  const obj = new THREE.Group();
+  obj.add(inner);
+  shadowAll(obj);
+  const rA = t0 <= 0.001 ? CAR.R * 0.95 : carR(t0), rB = carR(t1);
+  return { obj, t0, t1, mats, skin, capMat, state: "board", cook: 0, rA, rB, len: (t1 - t0) * L };
+}
+function restOnBoard(p, idx, n) {
+  const L = CAR.L, tm = (p.t0 + p.t1) / 2;
+  const x = tm * L - L / 2 + (idx - (n - 1) / 2) * (n > 1 ? 16 : 0);
+  const y = (p.rA + p.rB) / 2 * 0.96;
+  const tilt = -Math.atan2(p.rA - p.rB, Math.max(8, p.len));
+  return { pos: new THREE.Vector3(x, y, 0), tilt };
+}
+function layoutBoard(animate) {
+  const on = pieces.filter((p) => p.state === "board").sort((a, b) => a.t0 - b.t0);
+  on.forEach((p, i) => {
+    const { pos, tilt } = restOnBoard(p, i, on.length);
+    if (!animate) {
+      p.obj.position.copy(pos);
+      p.obj.rotation.set(0, 0, tilt);
+      return;
+    }
+    const p0 = p.obj.position.clone(), z0 = p.obj.rotation.z;
+    tween(0.35, (k) => {
+      const e = ease.back(k);
+      p.obj.position.lerpVectors(p0, pos, e);
+      p.obj.position.y = THREE.MathUtils.lerp(p0.y, pos.y, ease.out(k)) + Math.sin(k * Math.PI) * 10;
+      p.obj.rotation.z = THREE.MathUtils.lerp(z0, tilt, ease.out(k));
+    });
+  });
+}
+function resetCarrot() {
+  for (const p of pieces) p.obj.removeFromParent();
+  pieces = [buildPiece(0, 1)];
+  carrotRoot.add(pieces[0].obj);
+  layoutBoard(false);
+  carrot.target.copy(boardToWorld(0.5, 0.5));
+  carrotRoot.position.copy(carrot.target);
+  carrot.yaw = carrot.yawT = THREE.MathUtils.degToRad(-12);
+  carrotRoot.rotation.y = carrot.yaw;
+  carrot.opacity = 1;
+  carrot.seen = true;
+  setCarrotOpacity(1);
+}
+function setCarrotOpacity(o) {
+  carrotRoot.traverse((m) => {
+    if (!m.isMesh) return;
+    const mats = Array.isArray(m.material) ? m.material : [m.material];
+    for (const mt of mats) {
+      mt.opacity = o;
+      mt.transparent = o < 0.999;
+    }
+  });
+  carrotRoot.visible = o > 0.01;
+}
+// 切る: まな板の上のピースを、合計が count 個になるまで一番大きいものから半分に分ける
+function cutTo(count) {
+  let total = pieces.length;
+  if (count <= total) return;
+  while (total < count) {
+    const on = pieces.filter((p) => p.state === "board");
+    if (!on.length) break;
+    const big = on.reduce((a, b) => (b.t1 - b.t0 > a.t1 - a.t0 ? b : a));
+    const mid = big.t0 + (big.t1 - big.t0) * (big.t0 === 0 ? 0.42 : 0.5);
+    const a = buildPiece(big.t0, mid), b = buildPiece(mid, big.t1);
+    for (const np of [a, b]) {
+      np.obj.position.copy(big.obj.position);
+      np.obj.rotation.copy(big.obj.rotation);
+      carrotRoot.add(np.obj);
+    }
+    big.obj.removeFromParent();
+    pieces.splice(pieces.indexOf(big), 1, a, b);
+    total++;
+    chips(carrotRoot.localToWorld(big.obj.position.clone()));
+  }
+  layoutBoard(true);
+}
+
+// ---------------- 粒（切りくず・調味料）と湯気 ----------------
+function makeGrains(color, n, size) {
+  const geo = new THREE.BufferGeometry();
+  const pos = new Float32Array(n * 3).fill(-9999);
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  const pts = new THREE.Points(geo, new THREE.PointsMaterial({ color, size, map: grainDot, alphaTest: 0.5, sizeAttenuation: true }));
+  pts.frustumCulled = false;
+  scene.add(pts);
+  return { pts, pos, vel: new Float32Array(n * 3), life: new Float32Array(n), n, next: 0 };
+}
+const grains = { salt: makeGrains(0xfdfcf8, 500, 3.2), pepper: makeGrains(0x2a2522, 500, 3.2), chip: makeGrains(0xf07a22, 160, 4.2) };
+function emit(sys, p, v, life) {
+  const i = sys.next;
+  sys.next = (sys.next + 1) % sys.n;
+  sys.pos.set([p.x, p.y, p.z], i * 3);
+  sys.vel.set([v.x, v.y, v.z], i * 3);
+  sys.life[i] = life;
+}
+function stepGrains(sys, dt, floorY) {
+  for (let i = 0; i < sys.n; i++) {
+    if (sys.life[i] <= 0) continue;
+    sys.life[i] -= dt;
+    sys.vel[i * 3 + 1] -= 1800 * dt;
+    for (let k = 0; k < 3; k++) sys.pos[i * 3 + k] += sys.vel[i * 3 + k] * dt;
+    if (sys.pos[i * 3 + 1] < floorY(sys.pos[i * 3], sys.pos[i * 3 + 2])) sys.life[i] = 0;
+    if (sys.life[i] <= 0) sys.pos[i * 3 + 1] = -9999;
+  }
+  sys.pts.geometry.attributes.position.needsUpdate = true;
+}
+function chips(p) {
+  for (let i = 0; i < 14; i++) {
+    const a = Math.random() * 6.28;
+    emit(grains.chip, p.clone().add(new THREE.Vector3(0, 10, 0)), new THREE.Vector3(Math.cos(a) * 160, 220 + Math.random() * 200, Math.sin(a) * 160), 0.7);
+  }
+}
+const groundY = (x, z) => {
+  const dx = x - PAN_C.x, dz = z - PAN_C.z;
+  if (dx * dx + dz * dz < 90 * 90) return PAN_C.y + 2;
+  if (x > BOARD.x0 && x < BOARD.x0 + BOARD.w && -z > BOARD.y0 && -z < BOARD.y0 + BOARD.d) return BOARD.t;
+  return 0;
+};
+const steam = [];
+for (let i = 0; i < 70; i++) {
+  const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: softDot, color: 0xffffff, transparent: true, opacity: 0, depthWrite: false }));
+  s.visible = false;
+  s.userData = { life: 0, max: 1, vx: 0, vz: 0 };
+  scene.add(s);
+  steam.push(s);
+}
+let steamNext = 0;
+function puff(p, big = 1) {
+  const s = steam[steamNext];
+  steamNext = (steamNext + 1) % steam.length;
+  s.position.copy(p);
+  s.userData = { life: 0, max: 1.6 + Math.random() * 1.2, vx: (Math.random() - 0.5) * 30, vz: (Math.random() - 0.5) * 30, big };
+  s.visible = true;
+}
+function stepSteam(dt) {
+  for (const s of steam) {
+    if (!s.visible) continue;
+    const u = s.userData;
+    u.life += dt;
+    const k = u.life / u.max;
+    if (k >= 1) {
+      s.visible = false;
+      continue;
+    }
+    s.position.x += u.vx * dt;
+    s.position.z += u.vz * dt;
+    s.position.y += (70 + 40 * k) * dt;
+    const sc = (24 + 90 * k) * u.big;
+    s.scale.set(sc, sc, 1);
+    s.material.opacity = Math.sin(k * Math.PI) * 0.16;
+  }
+}
+// 「カッ」の文字
+const katTex = canvasTex(256, 128, (g, w, h) => {
+  g.font = "900 92px 'Zen Maru Gothic', sans-serif";
+  g.textAlign = "center";
+  g.textBaseline = "middle";
+  g.lineJoin = "round";
+  g.lineWidth = 16;
+  g.strokeStyle = "#e0561a";
+  g.strokeText("カッ", w / 2, h / 2 + 4);
+  g.fillStyle = "#fff8ef";
+  g.fillText("カッ", w / 2, h / 2 + 4);
+});
+const kat = new THREE.Sprite(new THREE.SpriteMaterial({ map: katTex, transparent: true, depthTest: false }));
+kat.visible = false;
+kat.renderOrder = 10;
+scene.add(kat);
+
+// ---------------- お客さん（受け渡し口の向こうから顔を出す） ----------------
+const guest = { root: new THREE.Group(), faces: {}, shown: false };
+{
+  const fur = phys({ color: 0xd9a46a, roughness: 0.85, sheen: 0.6, sheenColor: new THREE.Color(0xffe2bf) });
+  const light = phys({ color: 0xf3dcbc, roughness: 0.85, sheen: 0.5, sheenColor: new THREE.Color(0xffffff) });
+  const dark = phys({ color: 0x241712, roughness: 0.25, clearcoat: 1 });
+  const pink = stdm({ color: 0xf29a8e, roughness: 0.9, transparent: true, opacity: 0.85 });
+  const g = guest.root;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(115, 48, 32), fur);
+  g.add(head);
+  for (const s of [-1, 1]) {
+    const ear = new THREE.Mesh(new THREE.SphereGeometry(38, 24, 16), fur);
+    ear.position.set(s * 82, 86, -14);
+    const inner = new THREE.Mesh(new THREE.SphereGeometry(22, 20, 12), pink);
+    inner.scale.z = 0.4;
+    inner.position.set(s * 82, 86, 14);
+    const cheek = new THREE.Mesh(new THREE.SphereGeometry(16, 20, 12), pink);
+    cheek.scale.set(1.4, 0.8, 0.4);
+    cheek.position.set(s * 70, -26, 86);
+    g.add(ear, inner, cheek);
+  }
+  const muzzle = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 20), light);
+  muzzle.scale.set(52, 39, 31);
+  muzzle.position.set(0, -30, 95);
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(13, 24, 16), dark);
+  nose.scale.set(1.3, 0.9, 0.8);
+  nose.position.set(0, -12, 119);
+  g.add(muzzle, nose);
+  const face = (name) => {
+    const f = new THREE.Group();
+    f.visible = false;
+    g.add(f);
+    guest.faces[name] = f;
+    return f;
+  };
+  // 普通: 丸い目と一文字の口
+  const normal = face("normal");
+  for (const s of [-1, 1]) {
+    const e = new THREE.Mesh(new THREE.SphereGeometry(12, 24, 16), dark);
+    e.position.set(s * 42, 18, 103);
+    const hl = new THREE.Mesh(new THREE.SphereGeometry(3.6, 12, 8), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    hl.position.set(s * 42 - 4, 24, 114);
+    normal.add(e, hl);
+  }
+  const line = new THREE.Mesh(new RoundedBoxGeometry(24, 4, 4, 2, 1.8), dark);
+  line.position.set(0, -46, 124);
+  normal.add(line);
+  // うれしい: ^ ^ の目と開いた口
+  const happy = face("happy");
+  for (const s of [-1, 1]) {
+    const e = new THREE.Mesh(new THREE.TorusGeometry(12, 3.4, 10, 24, Math.PI), dark);
+    e.position.set(s * 42, 12, 106);
+    happy.add(e);
+  }
+  const mouth = new THREE.Mesh(new THREE.CircleGeometry(19, 32, Math.PI, Math.PI), stdm({ color: 0x8c2b25, roughness: 0.6 }));
+  mouth.position.set(0, -42, 124.6);
+  happy.add(mouth);
+  const tongue = new THREE.Mesh(new THREE.CircleGeometry(9, 24, Math.PI, Math.PI), stdm({ color: 0xf07a74, roughness: 0.6 }));
+  tongue.position.set(0, -52, 124.8);
+  happy.add(tongue);
+  // しかめる: > < の目とへの字の口
+  const frown = face("frown");
+  for (const s of [-1, 1]) {
+    for (const t of [-1, 1]) {
+      const b = new THREE.Mesh(new RoundedBoxGeometry(16, 4, 4, 2, 1.8), dark);
+      b.position.set(s * 42 - s * 4, 18 + t * 4.5, 106);
+      b.rotation.z = s * t * 0.5;
+      frown.add(b);
+    }
+  }
+  const fm = new THREE.Mesh(new THREE.TorusGeometry(14, 3, 10, 24, Math.PI), dark);
+  fm.position.set(0, -56, 121);
+  frown.add(fm);
+  // 食べている: もぐもぐの口
+  const chew = face("chew");
+  for (const s of [-1, 1]) {
+    const e = new THREE.Mesh(new THREE.TorusGeometry(11, 3.2, 10, 24, Math.PI), dark);
+    e.rotation.z = Math.PI;
+    e.position.set(s * 42, 24, 106);
+    chew.add(e);
+  }
+  const cm = new THREE.Mesh(new THREE.SphereGeometry(10, 20, 12), stdm({ color: 0x8c2b25, roughness: 0.6 }));
+  cm.scale.set(1, 0.7, 0.3);
+  cm.position.set(0, -46, 123);
+  chew.add(cm);
+  guest.chewMouth = cm;
+  // 体と手
+  const body = new THREE.Mesh(new THREE.SphereGeometry(130, 40, 28), fur);
+  body.scale.set(1, 1.1, 0.85);
+  body.position.y = -200;
+  const bib = new THREE.Mesh(new THREE.CircleGeometry(70, 3), stdm({ color: 0xffffff, roughness: 0.8 }));
+  bib.rotation.z = -Math.PI / 2;
+  bib.position.set(0, -132, 104);
+  g.add(body, bib);
+  for (const s of [-1, 1]) {
+    const paw = new THREE.Mesh(new THREE.SphereGeometry(30, 24, 16), fur);
+    paw.scale.set(1.15, 0.9, 1);
+    paw.position.set(s * 100, -172, 74);
+    g.add(paw);
+  }
+  g.position.set(645, -460, -1040);
+  scene.add(shadowAll(g));
+  guest.faces.normal.visible = true;
+}
+// お客さんの席: 丸いテーブルに座ったクマ。料理はキッチンの画面から届く
+const dining = { plate: null, tableMat: stdm({ color: 0x8a5a36, roughness: 0.5 }) };
+if (VIEW === "guest") {
+  const g = new THREE.Group();
+  g.position.copy(D0);
+  const top = new THREE.Mesh(new THREE.CylinderGeometry(430, 430, 32, 72), dining.tableMat);
+  top.position.y = -16;
+  const edge = new THREE.Mesh(new THREE.TorusGeometry(430, 6, 10, 96), dining.tableMat);
+  edge.rotation.x = Math.PI / 2;
+  edge.position.y = -16;
+  const leg = new THREE.Mesh(new THREE.CylinderGeometry(38, 46, 700, 32), stdm({ color: 0x222222, roughness: 0.4, metalness: 0.6 }));
+  leg.position.y = -382;
+  const foot = new THREE.Mesh(new THREE.CylinderGeometry(220, 240, 18, 48), stdm({ color: 0x222222, roughness: 0.4, metalness: 0.6 }));
+  foot.position.y = -724;
+  g.add(top, edge, leg, foot);
+  const cloth = new THREE.Mesh(new RoundedBoxGeometry(420, 2, 300, 2, 1), stdm({ color: 0x5f7f68, roughness: 0.95 }));   // ランチョンマット
+
+  cloth.position.set(0, 0.5, 80);
+  g.add(cloth);
+  const dfloor = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), stdm({ color: 0x8a6a4c, roughness: 0.7 }));
+  dfloor.rotation.x = -Math.PI / 2;
+  dfloor.position.y = -733;
+  g.add(dfloor);
+  scene.add(shadowAll(g));
+  dining.plate = plate.clone(true);
+  dining.plate.position.copy(D0).add(new THREE.Vector3(-1400, 0, 80));
+  dining.plate.visible = false;
+  scene.add(dining.plate);
+  guest.root.position.copy(D0).add(new THREE.Vector3(0, 205, -240));
+  guest.shown = true;
+}
+if (VIEW === "kitchen") guest.root.visible = false;
+function setFace(name) {
+  for (const [k, f] of Object.entries(guest.faces)) f.visible = k === name;
+}
+function showGuest(on, dur = 0.7) {
+  if (VIEW !== "all" || guest.shown === on) return;
+  guest.shown = on;
+  const y0 = guest.root.position.y, y1 = on ? 205 : -460;
+  tween(dur, (k) => (guest.root.position.y = THREE.MathUtils.lerp(y0, y1, on ? ease.back(k) : ease.in(k))));
+}
+
+// ---------------- 状態 ----------------
+const state = { fire: 0, salt: 0, pepper: 0, serving: false };
+function inPan() {
+  return pieces.filter((p) => p.state === "pan");
+}
+
+// ---------------- 音（「音を出す」をオンにしたときだけ） ----------------
+const sfx = { ctx: null, noise: null, sizzle: null };
+function audioOn() {
+  if (sfx.ctx) return;
+  const ctx = new (window.AudioContext || window.webkitAudioContext)();
+  const buf = ctx.createBuffer(1, ctx.sampleRate * 2, ctx.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  sfx.ctx = ctx;
+  sfx.noise = buf;
+  const src = ctx.createBufferSource();
+  src.buffer = buf;
+  src.loop = true;
+  const hp = ctx.createBiquadFilter();
+  hp.type = "highpass";
+  hp.frequency.value = 2500;
+  const gain = ctx.createGain();
+  gain.gain.value = 0;
+  src.connect(hp).connect(gain).connect(ctx.destination);
+  src.start();
+  sfx.sizzle = gain;
+}
+function noiseHit(freq, q, dur, vol, type = "bandpass") {
+  if (!sfx.ctx || !$("sound").checked) return;
+  const c = sfx.ctx, t = c.currentTime;
+  const s = c.createBufferSource();
+  s.buffer = sfx.noise;
+  const f = c.createBiquadFilter();
+  f.type = type;
+  f.frequency.value = freq;
+  f.Q.value = q;
+  const g = c.createGain();
+  g.gain.setValueAtTime(vol, t);
+  g.gain.exponentialRampToValueAtTime(0.0008, t + dur);
+  s.connect(f).connect(g).connect(c.destination);
+  s.start(t, Math.random());
+  s.stop(t + dur + 0.05);
+}
+function tone(freq, dur, vol, delay = 0, type = "sine") {
+  if (!sfx.ctx || !$("sound").checked) return;
+  const c = sfx.ctx, t = c.currentTime + delay;
+  const o = c.createOscillator();
+  o.type = type;
+  o.frequency.setValueAtTime(freq, t);
+  const g = c.createGain();
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(vol, t + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(c.destination);
+  o.start(t);
+  o.stop(t + dur + 0.05);
+}
+const sound = {
+  chop: () => { noiseHit(1800, 1.2, 0.09, 0.7); tone(140, 0.09, 0.4); },
+  shake: () => { for (let i = 0; i < 3; i++) setTimeout(() => noiseHit(6000, 0.8, 0.04, 0.25, "highpass"), i * 70); },
+  ignite: () => noiseHit(600, 0.5, 0.45, 0.5, "lowpass"),
+  plop: () => tone(260, 0.12, 0.25, 0, "triangle"),
+  serve: () => [523, 659, 784, 1047].forEach((f, i) => tone(f, 0.35, 0.18, i * 0.11)),
+};
+
+// ---------------- イベント（要件定義書 6.4） ----------------
+let toastTimer = 0;
+function toast(text) {
+  const t = $("toast");
+  t.textContent = text;
+  t.classList.remove("out");
+  toastTimer = 2.4;
+}
+function updateSeasonPill() {
+  const el = $("season");
+  el.hidden = !(state.salt || state.pepper);
+  el.textContent = `塩 ${state.salt.toFixed(1)}g ・ こしょう ${state.pepper.toFixed(1)}g`;
+}
+const COMMENTS = {
+  good: "おいしい！", too_salty: "しょっぱい…", too_bland: "味がうすいかも", undercooked: "まだかたいよ",
+  overcooked: "こげてる…", burnt: "こげてる…", too_peppery: "からい！",
+};
+const lastSeq = {};
+function handle(m, fromServer = false) {
+  if (!m || typeof m !== "object") return;
+  if (fromServer && typeof m.seq === "number" && m.device) {
+    if (lastSeq[m.device] !== undefined && m.seq <= lastSeq[m.device]) return;
+    lastSeq[m.device] = m.seq;
+  }
+  if (VIEW === "guest" && m.event !== "reset") return;
+  switch (m.event) {
+    case "position": onPosition(m); break;
+    case "swing": onSwing(); break;
+    case "cut": cutTo(Math.max(1, m.count | 0)); sound.chop(); break;
+    case "add": onAdd(m); break;
+    case "season": onSeason(m); break;
+    case "fire": onFire(m.level | 0); break;
+    case "serve": onServe(m, fromServer); break;
+    case "reset": onReset(); break;
+    case "status": break;
+    default: break;
+  }
+}
+function onPosition(m) {
+  if (m.item === "knife") {
+    if (m.visible === false) {
+      knife.seen = false;
+      knife.hideAt = 3;
+      return;
+    }
+    if (!m.tip || !m.grip) return;
+    const tip = boardToWorld(m.tip[0], m.tip[1]), grip = boardToWorld(m.grip[0], m.grip[1]);
+    knife.target.copy(tip).add(grip).multiplyScalar(0.5);
+    const yaw = Math.atan2(-(tip.z - grip.z), tip.x - grip.x);
+    if (!knife.seen && knife.opacity < 0.05) {
+      knife.root.position.copy(knife.target);
+      knife.yaw = yaw;
+    }
+    knife.yawT = yaw;
+    knife.seen = true;
+    knife.opT = 1;
+    return;
+  }
+  // 野菜（今はにんじんだけ）
+  if (m.visible === false) {
+    carrot.seen = false;
+    carrot.hideAt = 3;
+    return;
+  }
+  if (typeof m.x === "number" && typeof m.y === "number") {
+    carrot.target.copy(boardToWorld(m.x, m.y));
+    if (typeof m.rot === "number") carrot.yawT = THREE.MathUtils.degToRad(-m.rot);
+    carrot.seen = true;
+  }
+}
+function onSwing() {
+  if (knife.chopping) return;
+  knife.chopping = true;
+  tween(0.12, (k) => (knife.chop = ease.out(k) * 0.42), () => {
+    tween(0.08, (k) => {
+      knife.chop = 0.42 - 0.47 * ease.in(k);
+      knife.drop = ease.in(k);
+    }, () => {
+      sound.chop();
+      const p = knife.root.localToWorld(new THREE.Vector3(30, -knife.root.position.y + BOARD.t + 8, 0));
+      kat.position.copy(p).add(new THREE.Vector3(0, 90, 0));
+      kat.visible = true;
+      tween(0.55, (k) => {
+        const s = 70 + 50 * ease.back(Math.min(1, k * 2.2));
+        kat.scale.set(s * 2, s, 1);
+        kat.material.opacity = k < 0.6 ? 1 : 1 - (k - 0.6) / 0.4;
+      }, () => (kat.visible = false));
+      tween(0.25, (k) => camShake.set((Math.random() - 0.5) * 6 * (1 - k), (Math.random() - 0.5) * 6 * (1 - k), 0), () => camShake.set(0, 0, 0));
+      tween(0.22, (k) => {
+        knife.chop = -0.05 * (1 - k);
+        knife.drop = 1 - ease.out(k);
+      }, () => (knife.chopping = false));
+    });
+  });
+}
+function arcTo(obj, toPos, toQuat, dur, height, delay, done) {
+  let p0, q0;
+  tween(dur, (k) => {
+    if (!p0) {
+      p0 = obj.position.clone();
+      q0 = obj.quaternion.clone();
+    }
+    const e = ease.io(k);
+    obj.position.lerpVectors(p0, toPos, e);
+    obj.position.y += Math.sin(e * Math.PI) * height;
+    obj.quaternion.slerpQuaternions(q0, toQuat, e);
+  }, done, delay);
+}
+function panSpot(p) {
+  const a = Math.random() * 6.28, r = Math.sqrt(Math.random()) * 52;
+  const pos = new THREE.Vector3(PAN_C.x + Math.cos(a) * r, PAN_C.y + 2 + (p.rA + p.rB) / 2 * 0.92, PAN_C.z + Math.sin(a) * r);
+  const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(0, Math.random() * 6.28, -Math.atan2(p.rA - p.rB, Math.max(8, p.len)), "YXZ"));
+  return { pos, q };
+}
+function onAdd(m) {
+  if (m.zone && m.zone !== "pan") return;
+  const n = Math.max(1, m.count | 0);
+  const on = pieces.filter((p) => p.state === "board").sort((a, b) => b.t0 - a.t0).slice(0, n);
+  on.forEach((p, i) => {
+    p.state = "moving";
+    scene.attach(p.obj);
+    const { pos, q } = panSpot(p);
+    arcTo(p.obj, pos, q, 0.7, 160, i * 0.12, () => {
+      p.state = "pan";
+      pan.attach(p.obj);
+      sound.plop();
+      if (state.fire > 0) for (let k = 0; k < 4; k++) puff(pos.clone(), 1.4);
+      const y0 = pan.position.y;
+      tween(0.25, (k) => (pan.position.y = y0 - Math.sin(k * Math.PI) * 3));
+    });
+  });
+  if (on.length) later(0.5, () => layoutBoard(true));
+}
+function onSeason(m) {
+  const key = m.item === "pepper" ? "pepper" : "salt";
+  if (typeof m.total_g === "number") state[key] = m.total_g;
+  else state[key] += m.amount_g || 0.5;
+  updateSeasonPill();
+  toast(`${shakers[key].obj.userData.label} +${(m.amount_g ?? 0.5).toFixed(1)}g　合計 ${state[key].toFixed(1)}g`);
+  const s = shakers[key];
+  s.shakeLeft = Math.min(3, s.shakeLeft + 0.45);
+  if (s.state !== "home") return;
+  s.state = "going";
+  const over = PAN_C.clone().add(new THREE.Vector3(key === "salt" ? -30 : 30, 200, 10));
+  const q1 = new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI * 0.82, 0, key === "salt" ? 0.2 : -0.2));
+  arcTo(s.obj, over, q1, 0.5, 60, 0, () => (s.state = "shaking"));
+}
+function onFire(level) {
+  const prev = state.fire;
+  state.fire = Math.max(0, Math.min(3, level));
+  const k = knobs[1];
+  const a0 = k.rotation.y, a1 = (state.fire * Math.PI) / 2.2;
+  tween(0.3, (t) => (k.rotation.y = THREE.MathUtils.lerp(a0, a1, ease.out(t))));
+  if (prev === 0 && state.fire > 0) sound.ignite();
+  toast(["火を止めた", "弱火", "中火", "強火"][state.fire]);
+  flames.userData.ignite = prev === 0 ? 0 : 1;
+}
+function pickDish(m) {
+  if (m.dish && DISHES[m.dish]) return m.dish;
+  const d = COMMENT_DISH[m.comment] || "good";
+  return DISHES[d] ? d : null;
+}
+
+// ---------------- その場で作った料理を、本物の写真にする ----------------
+// 皿を斜め横（手前の右から、見下ろし約 35°）から撮る
+const SHOT = { w: 640, h: 480 };
+const plateCam = new THREE.PerspectiveCamera(26, SHOT.w / SHOT.h, 30, 3000);
+const plateRT = new THREE.WebGLRenderTarget(SHOT.w, SHOT.h, { colorSpace: THREE.SRGBColorSpace, samples: 4 });
+function capturePlate() {
+  const c = plate.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 12, 0));
+  const dist = 330, el = THREE.MathUtils.degToRad(35), az = THREE.MathUtils.degToRad(25);
+  plateCam.position.set(c.x + Math.sin(az) * Math.cos(el) * dist, c.y + Math.sin(el) * dist, c.z + Math.cos(az) * Math.cos(el) * dist);
+  plateCam.up.set(0, 1, 0);
+  plateCam.lookAt(c);
+  const hide = [knife.root, guest.root, ...Object.values(shakers).map((s) => s.obj)];
+  const was = hide.map((o) => o.visible);
+  hide.forEach((o) => (o.visible = false));
+  renderer.setRenderTarget(plateRT);
+  renderer.render(scene, plateCam);
+  const { w, h } = SHOT;
+  const px = new Uint8Array(w * h * 4);
+  renderer.readRenderTargetPixels(plateRT, 0, 0, w, h, px);
+  renderer.setRenderTarget(null);
+  hide.forEach((o, i) => (o.visible = was[i]));
+  const cv = document.createElement("canvas");
+  cv.width = w;
+  cv.height = h;
+  const g = cv.getContext("2d");
+  const img = g.createImageData(w, h);
+  for (let y = 0; y < h; y++) img.data.set(px.subarray((h - 1 - y) * w * 4, (h - y) * w * 4), y * w * 4);   // 上下を戻す
+  g.putImageData(img, 0, 0);
+  return cv.toDataURL("image/jpeg", 0.9);
+}
+// 料理の状態を、画像生成への指示にする
+function level(v, steps) {
+  let i = 0;
+  while (i < steps.length - 1 && v >= steps[i + 1][0]) i++;
+  return steps[i][1];
+}
+function dishPrompt() {
+  const food = pieces.filter((p) => p.state === "plate" || p.state === "pan");
+  const n = food.length;
+  const cook = n ? food.reduce((s, p) => s + p.cook, 0) / n : 0;
+  const done = level(cook, [
+    [0, "raw: bright orange, hard, dry and matte, no browning at all"],
+    [0.5, "barely cooked: still pale and firm, only slightly softened"],
+    [0.8, "lightly sauteed in butter: tender, a little glossy, a few light golden spots"],
+    [1.2, "perfectly sauteed in butter: glossy glaze, golden caramelized edges"],
+    [1.6, "overcooked: dark brown edges and some black charred spots, slightly shriveled"],
+    [2.2, "badly burnt: mostly dark brown and black, charred and shriveled"],
+  ]);
+  const salt = level(state.salt, [
+    [0, "no salt at all"],
+    [0.1, "a tiny pinch of salt, almost invisible"],
+    [1.5, "lightly salted, a few fine salt grains"],
+    [3.0, "well salted, salt grains visible here and there on the carrots"],
+    [4.5, "too salty: white salt crystals on every piece"],
+    [6.0, "extremely over-salted: a thick crust of white salt crystals on the carrots and small piles of salt on the plate"],
+  ]);
+  const pep = level(state.pepper, [
+    [0, "no black pepper"],
+    [0.1, "a few specks of black pepper"],
+    [0.8, "sprinkled with black pepper"],
+    [1.6, "heavily peppered: black pepper all over the carrots"],
+    [2.5, "extremely peppered: the carrots are mostly covered in coarse black pepper, black pepper scattered all over the plate"],
+  ]);
+  const whole = n === 1 && food[0].t0 <= 0.001 && food[0].t1 >= 0.999;
+  const shape = whole
+    ? "one whole uncut carrot with its green leafy top still attached (it was not cut at all)"
+    : `${n} carrot piece${n === 1 ? "" : "s"}${food.some((p) => p.t0 <= 0.001) ? ", one of them is the top end with the green leaves still attached" : ""}`;
+  return "Turn this 3D toy render into a realistic food photograph of the same dish. " +
+    "Keep the same camera angle (a three-quarter view from the front right, looking down at about 35 degrees) and the same framing. " +
+    `Keep the same white round plate and exactly the same food: ${shape}, with the same shapes, sizes and positions. Do not add or cut anything. ` +
+    `Doneness: ${done}. Salt (${state.salt.toFixed(1)} g): ${salt}. Black pepper (${state.pepper.toFixed(1)} g): ${pep}. ` +
+    "Make the amounts of salt and pepper clearly visible. Real food texture, on a light stone kitchen counter, soft natural daylight, " +
+    "shallow depth of field, no hands, no utensils, no text.";
+}
+async function generateDish(prompt, image) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), DISH_WAIT * 1000);
+  try {
+    const r = await fetch(DISH_URL, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt, image }), signal: ctrl.signal,
+    });
+    if (!r.ok) throw new Error("status " + r.status);
+    const j = await r.json();
+    if (!j.image) throw new Error("no image");
+    return j.image;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+// 待っている間の「盛り付け中…」
+let waitFx = null, waitTick = null;
+function startWaitFx() {
+  $("dish-title").textContent = "盛り付け中…";
+  $("dish-canvas").hidden = true;
+  $("dish-wait").hidden = false;
+  const t0 = performance.now();
+  $("dish-name").textContent = "シェフが仕上げています";
+  waitTick = setInterval(() => ($("dish-name").textContent = `シェフが仕上げています（${Math.round((performance.now() - t0) / 1000)} 秒）`), 1000);
+  $("dish-card").classList.remove("out", "eat");
+  waitFx = setInterval(() => puff(plate.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 110, 22, (Math.random() - 0.5) * 110)), 0.9), 160);
+}
+function stopWaitFx() {
+  clearInterval(waitFx);
+  clearInterval(waitTick);
+  waitFx = null;
+  $("dish-canvas").hidden = false;
+  $("dish-wait").hidden = true;
+}
+let serveId = 0, genPending = false;
+async function onServe(m, fromServer = false) {
+  if (state.serving) return;
+  state.serving = true;
+  const my = ++serveId;
+  const food = inPan();
+  const hasFood = food.length > 0 || m.force;
+  food.forEach((p, i) => {
+    p.state = "moving";
+    scene.attach(p.obj);
+    const a = Math.random() * 6.28, r = Math.random() * 34;
+    const pos = new THREE.Vector3(plate.position.x + Math.cos(a) * r, 4 + (p.rA + p.rB) / 2 * 0.92, plate.position.z + Math.sin(a) * r);
+    arcTo(p.obj, pos, p.obj.quaternion.clone(), 0.6, 140, i * 0.1, () => {
+      p.state = "plate";
+      plate.attach(p.obj);
+    });
+  });
+  const landed = food.length ? 0.6 + food.length * 0.1 + 0.15 : 0;
+  await new Promise((ok) => later(landed, ok));
+  if (my !== serveId) return;
+
+  // 1. 料理の写真を決める。生成できればそれ、できなければ先に用意した写真
+  let photoUrl = null, name = "";
+  const useGen = hasFood && food.length > 0 && (fromServer || $("gen").checked) && !m.dish && !m.script;
+  if (useGen) {
+    startWaitFx();
+    genPending = true;
+    try {
+      photoUrl = await generateDish(dishPrompt(), capturePlate());
+      name = "あなたの料理";
+    } catch (e) {
+      console.warn("画像生成できなかったので、用意した写真を使う:", e);
+    }
+    stopWaitFx();
+    genPending = false;
+    if (my !== serveId) return;
+  }
+  if (!photoUrl && hasFood) {
+    const d = pickDish(m);
+    if (d) {
+      photoUrl = DISHES[d];
+      name = DISH_NAMES[d] || "";
+    }
+  }
+  // 2. 本物の料理の写真が「できあがり！」の札に出る
+  let showPhoto = false;
+  if (photoUrl) {
+    const im = await loadImg(photoUrl).catch(() => null);
+    if (my !== serveId) return;
+    if (im) {
+      drawDish(im);
+      showPhoto = true;
+      for (let i = 0; i < 10; i++) puff(plate.position.clone().add(new THREE.Vector3((Math.random() - 0.5) * 120, 20, (Math.random() - 0.5) * 120)), 0.8);
+      $("dish-title").textContent = "できあがり！";
+      $("dish-name").textContent = name;
+      $("dish-card").classList.remove("out", "eat");
+      sound.serve();
+      await new Promise((ok) => later(2.2, ok));
+      if (my !== serveId) return;
+    }
+  }
+  if (!showPhoto) $("dish-card").classList.add("out");
+
+  // 3. 出す。キッチンの画面ならお客さんの画面へ送る。1 画面なら奥のお客さんが食べる
+  const from = plate.position.clone();
+  if (VIEW === "kitchen") {
+    const onPlate = pieces.filter((p) => p.state === "plate");
+    const msg = {
+      type: "dish", photo: showPhoto ? photoUrl : null, name, score: m.score ?? 0, comment: m.comment || "", demo: !!m.demo,
+      pieces: onPlate.map((p) => ({ t0: p.t0, t1: p.t1, cook: p.cook })),
+    };
+    $("dish-card").classList.add("out");
+    tween(1.0, (k) => plate.position.lerpVectors(from, SERVE_C, ease.io(k)), () => {
+      const f2 = plate.position.clone();
+      tween(0.6, (k) => {
+        plate.position.lerpVectors(f2, SERVE_C.clone().add(new THREE.Vector3(0, 0, -500)), ease.in(k));
+        plate.scale.setScalar(1 - 0.6 * k);
+      }, () => (plate.visible = false));
+      if (bus) bus.postMessage(msg);
+      if (guestOnline()) waitGuest = performance.now();
+      toast(bus ? "お客さんに出しました！" : "お客さんの画面につながっていません");
+    });
+    return;
+  }
+  if (showPhoto) $("dish-card").classList.add("eat");   // 札はクマの横へ
+  tween(1.0, (k) => plate.position.lerpVectors(from, SERVE_C, ease.io(k)), () => {
+    showGuest(true);
+    setFace("normal");
+    later(0.8, () => eatDish(pieces.filter((p) => p.state === "plate"), showPhoto, m));
+  });
+}
+// クマが食べる: 3D のピースと札の写真を、同じテンポでかじる。終わったら点数
+function eatDish(bites, showPhoto, m) {
+  setFace("chew");
+  const n = Math.max(showPhoto ? 4 : 1, bites.length);
+  bites.forEach((p, i) => tween(0.35, (k) => p.obj.scale.setScalar(Math.max(0.001, 1 - ease.in(k))), () => (p.obj.visible = false),
+    0.25 + ((i * n) / Math.max(1, bites.length)) * 0.5));
+  if (showPhoto) {
+    for (let i = 0; i < n; i++) later(0.25 + i * 0.5, () => { bite(i, n); sound.plop(); });
+    later(0.25 + n * 0.5 + 0.2, () => $("dish-card").classList.add("out"));
+  }
+  const dur = 0.4 + n * 0.45 + 0.4;
+  tween(dur, (k) => {
+    guest.chewMouth.scale.y = 0.4 + Math.abs(Math.sin(k * dur * 14)) * 0.6;
+    guest.root.rotation.z = Math.sin(k * dur * 9) * 0.04;
+  }, () => {
+    guest.root.rotation.z = 0;
+    const score = m.score ?? 0;
+    setFace(score >= 80 ? "happy" : score >= 50 ? "normal" : "frown");
+    const y0 = guest.root.position.y;
+    tween(0.5, (k) => (guest.root.position.y = y0 + Math.sin(k * Math.PI) * (score >= 80 ? 40 : 12)));
+    showCard(score, COMMENTS[m.comment] || m.comment || "", m.demo);
+    if (score >= 50) sound.serve();
+    if (VIEW === "guest" && bus) bus.postMessage({ type: "result", score, comment: m.comment || "", demo: !!m.demo });
+  });
+}
+// お客さんの画面: キッチンから届いた料理を、テーブルに出して食べる
+let guestBusy = false;
+async function guestEat(msg) {
+  if (guestBusy) return;
+  guestBusy = true;
+  const my = serveId;
+  const dp = dining.plate;
+  while (dp.children.length > 2) dp.remove(dp.children[dp.children.length - 1]);   // 前の料理を片づける
+  const made = msg.pieces.map((q) => {
+    const pc = buildPiece(q.t0, q.t1);
+    const c = Math.min(1, q.cook || 0);
+    pc.skin.color.copy(RAW).lerp(COOKED, c * 0.75);
+    pc.skin.roughness = 0.5 - 0.22 * c;
+    pc.capMat.color.copy(RAW).lerp(CAP_COOKED, c);
+    const a = Math.random() * 6.28, r = Math.sqrt(Math.random()) * 40;
+    pc.obj.position.set(Math.cos(a) * r, 4 + (pc.rA + pc.rB) / 2 * 0.92, Math.sin(a) * r);
+    pc.obj.rotation.set(0, Math.random() * 6.28, -Math.atan2(pc.rA - pc.rB, Math.max(8, pc.len)), "YXZ");
+    dp.add(pc.obj);
+    return pc;
+  });
+  dp.visible = true;
+  dp.scale.setScalar(1);
+  const p0 = D0.clone().add(new THREE.Vector3(-1400, 0, 80)), p1 = D0.clone().add(new THREE.Vector3(0, 0, 80));
+  dp.position.copy(p0);
+  setFace("normal");
+  toast("お待たせしました！");
+  await new Promise((ok) => tween(1.1, (k) => dp.position.lerpVectors(p0, p1, ease.out(k)), ok));
+  if (my !== serveId) return (guestBusy = false);
+  for (let i = 0; i < 8; i++) puff(p1.clone().add(new THREE.Vector3((Math.random() - 0.5) * 120, 20, (Math.random() - 0.5) * 120)), 0.8);
+  let showPhoto = false;
+  if (msg.photo) {
+    const im = await loadImg(msg.photo).catch(() => null);
+    if (im && my === serveId) {
+      drawDish(im);
+      showPhoto = true;
+      $("dish-title").textContent = "いただきます！";
+      $("dish-name").textContent = msg.name || "";
+      $("dish-card").classList.remove("out");
+      $("dish-card").classList.add("eat");
+      await new Promise((ok) => later(1.8, ok));
+    }
+  }
+  if (my !== serveId) return (guestBusy = false);
+  eatDish(made, showPhoto, msg);
+  later(6, () => (guestBusy = false));
+}
+let cardTimer = 0;
+function showCard(score, comment, demo) {
+  $("score-num").textContent = String(Math.round(score));
+  $("score-comment").textContent = comment;
+  $("score-note").hidden = !demo;
+  $("card").classList.remove("out");
+  cardTimer = 8;
+}
+function onReset(fromBus = false) {
+  serveId++;
+  waitGuest = 0;
+  if (VIEW === "kitchen" && bus && !fromBus) bus.postMessage({ type: "reset" });
+  if (waitFx) stopWaitFx();
+  tweens.length = 0;
+  state.fire = 0;
+  state.salt = state.pepper = 0;
+  state.serving = false;
+  updateSeasonPill();
+  knobs[1].rotation.y = 0;
+  for (const p of pieces) p.obj.removeFromParent();
+  resetCarrot();
+  plate.position.copy(PLATE_C);
+  pan.position.copy(PAN_C);
+  for (const s of Object.values(shakers)) {
+    s.obj.position.copy(s.home);
+    s.obj.quaternion.identity();
+    s.state = "home";
+    s.shakeLeft = 0;
+  }
+  plate.visible = true;
+  plate.scale.setScalar(1);
+  guest.root.rotation.z = 0;
+  if (VIEW === "guest") {
+    guest.root.position.copy(D0).add(new THREE.Vector3(0, 205, -240));
+    if (dining.plate) dining.plate.visible = false;
+    guestBusy = false;
+  } else {
+    guest.shown = false;
+    guest.root.position.y = -460;
+  }
+  setFace("normal");
+  $("card").classList.add("out");
+  $("dish-card").classList.add("out");
+  $("dish-card").classList.remove("eat");
+  kat.visible = false;
+  camShake.set(0, 0, 0);
+  knife.chop = knife.drop = 0;
+  knife.chopping = false;
+}
+
+// ---------------- サーバーとの接続 ----------------
+let ws = null, wsOK = false, retry = 1;
+function setStatus(kind, text) {
+  $("status").dataset.s = kind;
+  $("status-text").textContent = text;
+}
+function connect() {
+  try {
+    ws = new WebSocket(WS_URL);
+  } catch (e) {
+    ws = null;
+    scheduleRetry();
+    return;
+  }
+  ws.onopen = () => {
+    wsOK = true;
+    retry = 1;
+    for (const k of Object.keys(lastSeq)) delete lastSeq[k];
+    demo.stop();
+    setStatus("ok", "サーバー接続中");
+    try { ws.send(JSON.stringify({ device: "screen", ts: Date.now(), seq: 0, event: "hello" })); } catch (e) { /* 送れなくてもよい */ }
+  };
+  ws.onmessage = (e) => {
+    try { handle(JSON.parse(e.data), true); } catch (err) { /* 壊れた JSON は捨てる */ }
+  };
+  ws.onclose = () => {
+    const was = wsOK;
+    wsOK = false;
+    ws = null;
+    if (was) setStatus("retry", "再接続中…");
+    scheduleRetry();
+  };
+  ws.onerror = () => {};
+}
+function scheduleRetry() {
+  if (!wsOK && !demo.on && !demo.manual) demo.start();
+  setTimeout(connect, Math.min(10, retry) * 1000);
+  retry = Math.min(10, retry * 1.6);
+}
+
+// ---------------- 画面どうしのやり取り ----------------
+let kitchenSeen = 0, guestSeen = 0, waitGuest = 0;   // waitGuest: お客さんが食べ終わるのを待っている（時刻）
+const guestOnline = () => performance.now() - guestSeen < 4000;
+if (bus) {
+  bus.onmessage = (e) => {
+    const msg = e.data || {};
+    if (msg.type === "hello" && VIEW === "guest") kitchenSeen = performance.now();
+    if (msg.type === "guest-hello" && VIEW === "kitchen") guestSeen = performance.now();
+    if (msg.type === "reset" && VIEW === "guest") onReset(true);
+    if (msg.type === "dish" && VIEW === "guest") guestEat(msg);
+    if (msg.type === "result" && VIEW === "kitchen") {
+      waitGuest = 0;
+      showCard(msg.score, COMMENTS[msg.comment] || msg.comment || "", msg.demo);
+      toast("お客さんが食べ終わりました");
+    }
+  };
+  if (VIEW === "kitchen") setInterval(() => bus.postMessage({ type: "hello" }), 1500);
+  if (VIEW === "guest") setInterval(() => bus.postMessage({ type: "guest-hello" }), 1500);
+}
+if (VIEW === "guest") {
+  setStatus("retry", "キッチンの画面を待っています");
+  setInterval(() => {
+    if (bus && performance.now() - kitchenSeen < 4000) setStatus("ok", "キッチンとつながっています");
+    else setStatus("retry", "キッチンの画面を待っています");
+  }, 1000);
+}
+
+// ---------------- デモ（サーバーがないとき） ----------------
+let seqDemo = 0;
+const send = (m) => handle({ device: "demo", ts: Date.now(), seq: ++seqDemo, ...m });
+const KN = [   // 包丁の動き [時刻, 刃先 u, v, 柄尻 u, v]
+  [0.6, 1.75, 0.78, 2.25, 0.5], [2.2, 0.66, 0.66, 1.12, 0.36], [3.6, 0.66, 0.66, 1.12, 0.36],
+  [4.1, 0.55, 0.68, 1.01, 0.38], [5.0, 0.55, 0.68, 1.01, 0.38], [5.5, 0.44, 0.7, 0.9, 0.4], [6.5, 0.44, 0.7, 0.9, 0.4],
+  [7.8, 1.7, 0.85, 2.2, 0.6],
+];
+const SCRIPT = [
+  [0, () => send({ event: "reset" })],
+  [0.2, () => send({ event: "position", item: "carrot", x: 0.48, y: 0.5, rot: 12, visible: true })],
+  [2.9, () => send({ event: "swing", item: "knife" })], [3.3, () => send({ event: "cut", item: "carrot", count: 2 })],
+  [4.6, () => send({ event: "swing", item: "knife" })], [4.95, () => send({ event: "cut", item: "carrot", count: 3 })],
+  [6.0, () => send({ event: "swing", item: "knife" })], [6.35, () => send({ event: "cut", item: "carrot", count: 4 })],
+  [8.0, () => send({ event: "position", item: "knife", visible: false })],
+  [9.0, () => send({ event: "add", item: "carrot", zone: "pan", count: 4 })],
+  [10.4, () => send({ event: "fire", level: 2 })],
+  ...[0, 1, 2, 3, 4, 5].map((i) => [11.6 + i * 0.45, () => send({ event: "season", item: "salt", amount_g: 0.5, total_g: 0.5 * (i + 1) })]),
+  ...[0, 1].map((i) => [15.2 + i * 0.45, () => send({ event: "season", item: "pepper", amount_g: 0.5, total_g: 0.5 * (i + 1) })]),
+  [25.0, () => send({ event: "fire", level: 0 })],
+  [25.6, () => send({ event: "serve", score: 86, comment: "good", demo: true, script: true })],
+  [40.5, () => send({ event: "reset" })],
+];
+const DEMO_LEN = 41.5;
+const demo = {
+  on: false, manual: false, t: 0, idx: 0, lastKnife: 0,
+  start() {
+    if (VIEW === "guest") return;
+    this.on = true;
+    this.t = 0;
+    this.idx = 0;
+    $("demo-btn").classList.add("on");
+    if (!wsOK) setStatus("demo", "デモ再生中");
+  },
+  stop() {
+    this.on = false;
+    $("demo-btn").classList.remove("on");
+    if (!wsOK && VIEW !== "guest") setStatus("retry", "サーバーを待っています");
+  },
+  step(dt) {
+    if (!this.on || genPending) return;
+    if (waitGuest && performance.now() - waitGuest < 30000) return;
+    waitGuest = 0;
+    this.t += dt;
+    while (this.idx < SCRIPT.length && SCRIPT[this.idx][0] <= this.t) SCRIPT[this.idx++][1]();
+    // 包丁の位置を 20 回/秒で送る
+    this.lastKnife += dt;
+    if (this.lastKnife > 0.05 && this.t > KN[0][0] && this.t < KN[KN.length - 1][0]) {
+      this.lastKnife = 0;
+      let i = 0;
+      while (i < KN.length - 2 && KN[i + 1][0] < this.t) i++;
+      const a = KN[i], b = KN[i + 1], k = ease.io(Math.min(1, (this.t - a[0]) / (b[0] - a[0])));
+      const L = (j) => a[j] + (b[j] - a[j]) * k;
+      send({ event: "position", item: "knife", tip: [L(1), L(2)], grip: [L(3), L(4)], visible: true });
+    }
+    if (this.t > DEMO_LEN) {
+      this.t = 0;
+      this.idx = 0;
+    }
+  },
+};
+
+// ---------------- 操作パネル・キー ----------------
+function manual() {
+  if (demo.on) {
+    demo.stop();
+    demo.manual = true;
+  }
+}
+function demoScore() {
+  const cooked = inPan().length ? inPan().reduce((s, p) => s + p.cook, 0) / inPan().length : 0;
+  let score = 100 - Math.abs(state.salt - 3) * 14 - Math.max(0, state.pepper - 1.5) * 20 - (cooked < 0.5 ? 35 : 0) - (cooked > 1.6 ? 30 : 0);
+  if (!inPan().length) score = 20;
+  score = Math.max(5, Math.min(100, Math.round(score)));
+  const comment = state.salt > 4.5 ? "too_salty" : state.salt < 1.5 ? "too_bland" : cooked < 0.5 ? "undercooked" : cooked > 1.6 ? "overcooked" : "good";
+  return { score, comment };
+}
+const ACT = {
+  swing: () => send({ event: "swing", item: "knife" }),
+  cut: () => send({ event: "cut", item: "carrot", count: pieces.length + 1 }),
+  add: () => send({ event: "add", item: "carrot", zone: "pan", count: pieces.filter((p) => p.state === "board").length || 1 }),
+  salt: () => send({ event: "season", item: "salt", amount_g: 0.5, total_g: state.salt + 0.5 }),
+  pepper: () => send({ event: "season", item: "pepper", amount_g: 0.5, total_g: state.pepper + 0.5 }),
+  serve: () => send({ event: "serve", ...demoScore(), demo: true }),
+  reset: () => send({ event: "reset" }),
+};
+document.querySelectorAll("[data-act]").forEach((b) => b.addEventListener("click", () => {
+  audioToggle();
+  if (b.dataset.act === "demo") {
+    if (demo.on) {
+      demo.stop();
+      demo.manual = true;
+    } else {
+      demo.manual = false;
+      demo.start();
+    }
+    return;
+  }
+  manual();
+  ACT[b.dataset.act]();
+}));
+const DISH_TRY = { good: [88, "good"], burnt: [34, "overcooked"], undercooked: [42, "undercooked"], salty: [46, "too_salty"] };
+document.querySelectorAll("[data-dish]").forEach((b) => b.addEventListener("click", () => {
+  manual();
+  const [score, comment] = DISH_TRY[b.dataset.dish];
+  send({ event: "serve", score, comment, dish: b.dataset.dish, demo: true, force: true });
+}));
+document.querySelectorAll("[data-fire]").forEach((b) => b.addEventListener("click", () => {
+  manual();
+  send({ event: "fire", level: Number(b.dataset.fire) });
+}));
+$("panel-toggle").addEventListener("click", () => ($("panel").hidden = !$("panel").hidden));
+function viewUrl(v) {
+  const u = new URL(location.href);
+  u.searchParams.set("view", v);
+  u.searchParams.delete("t");
+  u.searchParams.delete("hold");
+  u.searchParams.delete("after");
+  return u.href;
+}
+$("open-guest").addEventListener("click", () => window.open(viewUrl("guest"), "omamagoto-guest", "width=1280,height=720"));
+$("open-kitchen").addEventListener("click", () => (location.href = viewUrl("kitchen")));
+if (VIEW === "kitchen") $("open-kitchen").hidden = true;
+function audioToggle() {
+  if ($("sound").checked) audioOn();
+}
+$("sound").addEventListener("change", audioToggle);
+document.addEventListener("keydown", (e) => {
+  if (e.target && e.target.tagName === "INPUT") return;
+  const k = e.key.toLowerCase();
+  const map = { k: "swing", c: "cut", a: "add", s: "salt", p: "pepper", enter: "serve", r: "reset" };
+  if (map[k]) {
+    manual();
+    ACT[map[k]]();
+  } else if ("0123".includes(k) && k.length === 1) {
+    manual();
+    send({ event: "fire", level: Number(k) });
+  } else if (k === "d") {
+    $("demo-btn").click();
+  }
+});
+// マウスで包丁（テスト用）
+const ray = new THREE.Raycaster();
+const ndc = new THREE.Vector2();
+const boardPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -BOARD.t);
+renderer.domElement.addEventListener("pointermove", (e) => {
+  if (!$("mouse-knife").checked) return;
+  const r = renderer.domElement.getBoundingClientRect();
+  ndc.set(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+  ray.setFromCamera(ndc, camera);
+  const p = new THREE.Vector3();
+  if (!ray.ray.intersectPlane(boardPlane, p)) return;
+  const u = (p.x - BOARD.x0) / BOARD.w, v = (-p.z - BOARD.y0) / BOARD.d;
+  manual();
+  send({ event: "position", item: "knife", tip: [u, v], grip: [u + 0.46, v - 0.3], visible: true });
+});
+renderer.domElement.addEventListener("pointerdown", () => {
+  if ($("mouse-knife").checked) send({ event: "swing", item: "knife" });
+});
+
+// ---------------- 仕上げの処理（物の隙間の影・光のにじみ・周辺を少し暗く・ギザギザ消し） ----------------
+const POST = params.get("post") !== "0";
+const composer = new EffectComposer(renderer);
+composer.addPass(new RenderPass(scene, camera));
+const gtao = new GTAOPass(scene, camera, 16, 16);
+gtao.blendIntensity = 0.9;
+gtao.updateGtaoMaterial({ radius: 60, distanceExponent: 1.2, thickness: 12, scale: 1, samples: 16, distanceFallOff: 1 });
+gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 8, rings: 2, samples: 16 });
+gtao.overrideVisibility = function () {
+  const cache = this._visibilityCache;
+  this.scene.traverse((o) => {
+    cache.set(o, o.visible);
+    if (o.isPoints || o.isLine || o.isSprite || o.userData.noAO) o.visible = false;
+  });
+};
+composer.addPass(gtao);
+const bloom = new UnrealBloomPass(new THREE.Vector2(16, 16), 0.12, 0.4, 1.6);   // 炎や強い照り返しだけ少しにじませる
+composer.addPass(bloom);
+composer.addPass(new OutputPass());
+const vignette = new ShaderPass({
+  uniforms: { tDiffuse: { value: null }, amount: { value: 0.28 }, grain: { value: 0.018 }, time: { value: 0 } },
+  vertexShader: "varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float amount; uniform float grain; uniform float time; varying vec2 vUv;
+    float rnd(vec2 p){ return fract(sin(dot(p, vec2(12.9898, 78.233)) + time) * 43758.5453); }
+    void main(){ vec4 c = texture2D(tDiffuse, vUv); vec2 d = vUv - 0.5; float v = 1.0 - amount * dot(d, d) * 2.2;
+      c.rgb *= v; c.rgb += (rnd(vUv * 1000.0) - 0.5) * grain; gl_FragColor = c; }`,
+});
+composer.addPass(vignette);
+const smaa = new SMAAPass(16, 16);
+composer.addPass(smaa);
+
+// ---------------- 大きさ ----------------
+function resize() {
+  const w = view.clientWidth, h = view.clientHeight;
+  if (!w || !h) return;
+  renderer.setSize(w, h);
+  composer.setPixelRatio(renderer.getPixelRatio());
+  composer.setSize(w, h);
+  const aspect = w / h;
+  camera.aspect = aspect;
+  // 16:9 より縦長の画面では、横の見える幅を 16:9 と同じにする
+  const base = 38;
+  if (aspect < 16 / 9) {
+    const hf = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(base / 2)) * (16 / 9));
+    camera.fov = THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(hf / 2) / aspect));
+  } else camera.fov = base;
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(view);
+resize();
+
+// ---------------- 毎フレーム ----------------
+const RAW = new THREE.Color(0xffffff), COOKED = new THREE.Color(0xb0602a), CAP_COOKED = new THREE.Color(0xd99a55);
+let last = performance.now(), elapsed = 0;
+const DT_CAP = Number(params.get("dtcap")) || 0.05;   // 確認用: 描画が遅い PC でも時間を進める（例 ?dtcap=0.5）
+function tick(now) {
+  const dt = Math.min(DT_CAP, (now - last) / 1000);
+  last = now;
+  update(HOLD || after > 0 ? 0 : dt);
+  camera.position.copy(CAM_POS).add(camShake);
+  camera.lookAt(CAM_LOOK);
+  if (POST) {
+    vignette.uniforms.time.value = (now % 10000) / 1000;
+    composer.render();
+  } else renderer.render(scene, camera);
+  requestAnimationFrame(tick);
+}
+function update(dt) {
+  elapsed += dt;
+  if (VIEW === "guest" && !guestBusy) guest.root.rotation.z = Math.sin(elapsed * 1.6) * 0.025;
+  demo.step(dt);
+  stepTweens(dt);
+  const f = 1 - Math.exp(-dt * 14);
+
+  // 包丁
+  if (!knife.seen) {
+    knife.hideAt -= dt;
+    if (knife.hideAt <= 0) knife.opT = 0;
+  }
+  knife.opacity += (knife.opT - knife.opacity) * Math.min(1, dt * 4);
+  setKnifeOpacity(knife.opacity);
+  knife.root.position.x += (knife.target.x - knife.root.position.x) * f;
+  knife.root.position.z += (knife.target.z - knife.root.position.z) * f;
+  knife.root.position.y = BOARD.t + (46 + 2) * KNIFE_S + 30 * (1 - knife.drop);
+  let dy = knife.yawT - knife.yaw;
+  dy = Math.atan2(Math.sin(dy), Math.cos(dy));
+  knife.yaw += dy * f;
+  knife.root.rotation.y = knife.yaw;
+  knife.pivot.rotation.z = knife.chop;
+
+  // まな板の上のにんじん
+  if (!carrot.seen) {
+    carrot.hideAt -= dt;
+    if (carrot.hideAt <= 0 && carrot.opacity > 0) {
+      carrot.opacity = Math.max(0, carrot.opacity - dt * 2);
+      setCarrotOpacity(carrot.opacity);
+    }
+  } else if (carrot.opacity < 1) {
+    carrot.opacity = Math.min(1, carrot.opacity + dt * 3);
+    setCarrotOpacity(carrot.opacity);
+  }
+  carrotRoot.position.lerp(carrot.target, f);
+  let dc = carrot.yawT - carrot.yaw;
+  dc = Math.atan2(Math.sin(dc), Math.cos(dc));
+  carrot.yaw += dc * f;
+  carrotRoot.rotation.y = carrot.yaw;
+
+  // 火と、焼ける
+  const lv = state.fire;
+  const want = [0, 0.62, 0.95, 1.3][lv];
+  flames.userData.cur = (flames.userData.cur || 0) + (want - (flames.userData.cur || 0)) * Math.min(1, dt * 6);
+  const fl = flames.userData.cur;
+  flames.visible = fl > 0.03;
+  if (flames.visible) {
+    const n = flames.userData.n;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * Math.PI * 2;
+      const flick = 0.82 + 0.28 * Math.sin(elapsed * 23 + i * 2.7) * Math.sin(elapsed * 7.3 + i);
+      dummy.position.set(Math.cos(a) * 34, 0, Math.sin(a) * 34);
+      dummy.rotation.set(0, -a, 0);
+      dummy.rotateZ(-0.55);
+      dummy.scale.set(1, fl * flick, 1);
+      dummy.updateMatrix();
+      flames.setMatrixAt(i, dummy.matrix);
+    }
+    flames.instanceMatrix.needsUpdate = true;
+  }
+  fireGlow.intensity = fl * (9000 + 2500 * Math.sin(elapsed * 17));
+  const food = inPan();
+  for (const p of food) {
+    if (lv > 0) p.cook += dt * lv * 0.03;
+    const c = Math.min(1, p.cook);
+    p.skin.color.copy(RAW).lerp(COOKED, c * 0.75);
+    p.skin.roughness = 0.5 - 0.22 * c;
+    p.capMat.color.copy(RAW).lerp(CAP_COOKED, c);
+  }
+  if (lv > 0 && food.length && Math.random() < dt * (3 + lv * 5)) {
+    const p = food[(Math.random() * food.length) | 0];
+    puff(p.obj.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, 12, 0)), 1 + lv * 0.25);
+  }
+  if (sfx.sizzle) sfx.sizzle.gain.value += (((lv > 0 && food.length && $("sound").checked) ? 0.05 + lv * 0.04 : 0) - sfx.sizzle.gain.value) * Math.min(1, dt * 4);
+
+  // 調味料の容器
+  for (const [key, s] of Object.entries(shakers)) {
+    if (s.state !== "shaking") continue;
+    s.shakeLeft -= dt;
+    const w = Math.sin(elapsed * 30);
+    s.obj.position.y += w * 2.4;
+    if (Math.random() < dt * 60) {
+      const tipW = s.obj.localToWorld(new THREE.Vector3((Math.random() - 0.5) * 14, 104, (Math.random() - 0.5) * 14));
+      emit(grains[key], tipW, new THREE.Vector3((Math.random() - 0.5) * 60, -120 - Math.random() * 120, (Math.random() - 0.5) * 60), 1.2);
+    }
+    if (Math.random() < dt * 3) sound.shake();
+    if (s.shakeLeft <= 0) {
+      s.state = "back";
+      arcTo(s.obj, s.home.clone(), new THREE.Quaternion(), 0.55, 60, 0, () => (s.state = "home"));
+    }
+  }
+  stepGrains(grains.salt, dt, groundY);
+  stepGrains(grains.pepper, dt, groundY);
+  stepGrains(grains.chip, dt, groundY);
+  stepSteam(dt);
+
+  // 文字の表示
+  if (toastTimer > 0) {
+    toastTimer -= dt;
+    if (toastTimer <= 0) $("toast").classList.add("out");
+  }
+  if (cardTimer > 0) {
+    cardTimer -= dt;
+    if (cardTimer <= 0) $("card").classList.add("out");
+  }
+
+}
+
+resetCarrot();
+updateSeasonPill();
+demo.start();
+// 確認用: ?t=秒 で、デモをその時刻まで早送りしてから表示する（&hold を付けるとそこで止める）
+const ff = Number(params.get("t"));
+const HOLD = params.has("hold");   // 早送りした時点で止める
+if (ff > 0) for (let s = 0; s < ff; s += 1 / 30) update(1 / 30);
+else connect();
+// 確認用: &after=秒 … 画像生成の返事を待ってから、さらにその秒数だけ進めて止める
+const after = Number(params.get("after"));
+if (ff > 0 && after > 0) {
+  (async () => {
+    await new Promise((r) => setTimeout(r, 50));
+    while (genPending) await new Promise((r) => setTimeout(r, 100));
+    for (let s = 0; s < after; s += 1 / 30) {
+      update(1 / 30);
+      await Promise.resolve();
+    }
+    requestAnimationFrame(tick);
+  })();
+} else requestAnimationFrame(tick);
+</script>
+</body>
+</html>
