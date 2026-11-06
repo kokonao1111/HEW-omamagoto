@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>提供カウンター 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@700&family=BIZ+UDPGothic:wght@400;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<style>
+  :root {
+    color-scheme: light;
+    --ground: #edf1ee;
+    --panel: #fafbfa;
+    --chip: #eef2ef;
+    --ink: #1d2622;
+    --muted: #5b6862;
+    --line: #d3dbd6;
+    --accent: #c8452c;
+    --accent-ink: #ffffff;
+    --pick: #2f6fb8;
+    --on: #1f8a5b;
+    --viewport: #e3e9e5;
+    --font-display: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", sans-serif;
+    --font-body: "BIZ UDPGothic", "Hiragino Sans", "Yu Gothic", "Meiryo", sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #101614;
+      --panel: #161e1b;
+      --chip: #1e2724;
+      --ink: #e4ece8;
+      --muted: #9aa7a1;
+      --line: #2a3531;
+      --accent: #f0704f;
+      --accent-ink: #1a0e0b;
+      --pick: #6fa8e8;
+      --on: #4cc58e;
+      --viewport: #0d1311;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #101614;
+    --panel: #161e1b;
+    --chip: #1e2724;
+    --ink: #e4ece8;
+    --muted: #9aa7a1;
+    --line: #2a3531;
+    --accent: #f0704f;
+    --accent-ink: #1a0e0b;
+    --pick: #6fa8e8;
+    --on: #4cc58e;
+    --viewport: #0d1311;
+  }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 14px;
+    line-height: 1.65;
+  }
+  .app {
+    box-sizing: border-box;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-inline: 16px;
+    padding-block: calc(12px + env(safe-area-inset-top, 0px)) calc(12px + env(safe-area-inset-bottom, 0px));
+  }
+  .bar { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px; }
+  h1 { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 20px; letter-spacing: 0.02em; text-wrap: balance; }
+  .spec { margin: 0; font-family: var(--font-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .work { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 12px; }
+  .stage { position: relative; min-height: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 10px; background: var(--viewport); }
+  .viewport { position: absolute; inset: 0; }
+  .viewport canvas { display: block; touch-action: none; }
+  .labels { position: absolute; inset: 0; pointer-events: none; }
+  .tools { position: absolute; z-index: 2; display: flex; flex-wrap: wrap; gap: 6px; }
+  .tools-view { top: 10px; left: 10px; }
+  .tools-show { top: 10px; right: 10px; justify-content: flex-end; max-width: 58%; }
+  .tools button, .toggle {
+    font: inherit; font-size: 12px; line-height: 1.4; color: var(--ink);
+    background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer;
+  }
+  .tools button[aria-pressed="true"] { background: var(--ink); color: var(--panel); border-color: var(--ink); }
+  .toggle { display: inline-flex; align-items: center; gap: 6px; user-select: none; }
+  .toggle input { margin: 0; accent-color: var(--accent); }
+  .hint { position: absolute; left: 10px; bottom: 8px; margin: 0; padding: 2px 8px; border-radius: 4px; font-size: 11px; color: var(--muted); background: var(--panel); opacity: 0.92; }
+  .flow {
+    position: absolute; left: 10px; right: 10px; bottom: 36px; z-index: 2;
+    margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 4px; align-items: center;
+  }
+  .flow[hidden] { display: none; }
+  .flow li {
+    font-size: 12px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--muted); transition: background 0.2s, color 0.2s;
+  }
+  .flow li + li::before { content: "→ "; color: var(--muted); }
+  .flow li.on { background: var(--on); border-color: var(--on); color: #fff; }
+  .flow li.on::before { color: #fff; }
+  .panel {
+    min-height: 0; overflow: auto; display: flex; flex-direction: column; gap: 18px;
+    padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel);
+  }
+  .eyebrow { margin: 0; font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.06em; color: var(--accent); font-variant-numeric: tabular-nums; }
+  h2 { margin: 2px 0 8px; font-family: var(--font-display); font-weight: 700; font-size: 22px; line-height: 1.35; text-wrap: balance; }
+  .step-text { margin: 0; max-width: 34em; }
+  .tips { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+  .tips li { display: grid; grid-template-columns: auto 1fr; gap: 8px; align-items: baseline; }
+  .tips li::before { content: "メモ"; font-family: var(--font-mono); font-size: 10px; color: var(--accent); border: 1px solid currentColor; border-radius: 3px; padding: 0 4px; }
+  .key { margin: 10px 0 0; font-size: 12px; color: var(--muted); }
+  .key .red { color: var(--accent); font-weight: 700; }
+  .nav { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; }
+  .btn { font: inherit; font-weight: 700; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--chip); color: var(--ink); cursor: pointer; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  h3 { margin: 0 0 8px; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; color: var(--muted); }
+  .parts { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+  .parts li { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 8px; padding: 6px 10px; border-radius: 6px; background: var(--chip); }
+  .parts .nm { font-weight: 700; }
+  .parts .sub { grid-column: 1 / -1; font-size: 12px; color: var(--muted); }
+  .dims { font-family: var(--font-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+  .picked-card { display: grid; gap: 2px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--pick); }
+  .picked-card .nm { font-weight: 700; font-size: 16px; color: var(--pick); }
+  .picked-card p { margin: 0; }
+  .picked-card .sub { font-size: 12px; color: var(--muted); }
+  .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+  .steps button {
+    width: 100%; display: grid; grid-template-columns: 28px 1fr; gap: 6px; text-align: left;
+    font: inherit; color: var(--ink); background: none; border: 0; border-radius: 6px; padding: 5px 8px; cursor: pointer;
+  }
+  .steps button:hover { background: var(--chip); }
+  .steps .n { font-family: var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+  .steps button[aria-current="step"] { background: var(--chip); font-weight: 700; }
+  .steps button[aria-current="step"] .n { color: var(--accent); }
+  .label {
+    font-family: var(--font-body); font-weight: 700; font-size: 12px; line-height: 1.3; white-space: nowrap;
+    padding: 1px 6px; border-radius: 4px; color: var(--ink); background: var(--panel); border: 1px solid var(--line);
+  }
+  .label.new { color: var(--accent-ink); background: var(--accent); border-color: var(--accent); }
+  @media (max-width: 860px) {
+    html, body { height: auto; }
+    .app { height: auto; }
+    .work { grid-template-columns: 1fr; }
+    .stage { height: 58vh; min-height: 340px; }
+    .panel { overflow: visible; }
+    .tools-show { top: 46px; left: 10px; right: 10px; max-width: none; justify-content: flex-start; }
+    .nav { position: sticky; bottom: env(safe-area-inset-bottom, 0px); z-index: 3; padding-block: 8px; background: var(--panel); }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <h1>提供カウンター 組み立て 3D</h1>
+    <p class="spec" id="spec"></p>
+  </header>
+  <main class="work">
+    <section class="stage" aria-label="提供カウンターの 3D 図">
+      <div id="viewport" class="viewport"></div>
+      <div class="tools tools-view" role="group" aria-label="見る向き">
+        <button type="button" data-view="iso">斜め</button>
+        <button type="button" data-view="close">カウンター</button>
+        <button type="button" data-view="front">正面</button>
+        <button type="button" data-view="top">上</button>
+      </div>
+      <div class="tools tools-show" role="group" aria-label="表示">
+        <label class="toggle"><input type="checkbox" id="t-explode"> 分解</label>
+        <label class="toggle"><input type="checkbox" id="t-inside"> 中を見る</label>
+        <label class="toggle"><input type="checkbox" id="t-labels"> 名前を全部</label>
+        <label class="toggle"><input type="checkbox" id="t-ghost" checked> 完成形をうすく</label>
+      </div>
+      <ol class="flow" id="flow" hidden>
+        <li>皿をのせる</li>
+        <li>磁石でスイッチが入る</li>
+        <li>M5StickS3 が BLE で送る</li>
+        <li>サーバーが「提供」を出す</li>
+        <li>お客さんの画面に料理が届く</li>
+      </ol>
+      <p class="hint">ドラッグで回す ・ ホイールかピンチで拡大 ・ 右ドラッグか 2 本指で移動 ・ 部品をタップで説明</p>
+    </section>
+    <aside class="panel" aria-live="polite">
+      <div>
+        <p class="eyebrow" id="step-count"></p>
+        <h2 id="step-title"></h2>
+        <p class="step-text" id="step-text"></p>
+        <ul class="tips" id="step-tips"></ul>
+        <p class="key" id="key"><span class="red">赤い線</span>の部品が、この工程で付けるもの。</p>
+      </div>
+      <div class="nav">
+        <button type="button" class="btn" id="prev">◀ 前へ</button>
+        <button type="button" class="btn primary" id="next">次へ ▶</button>
+      </div>
+      <section id="picked" hidden>
+        <h3>選んだ部品</h3>
+        <div class="picked-card" id="picked-body"></div>
+      </section>
+      <section>
+        <h3 id="parts-heading">この工程で付けるもの</h3>
+        <ul class="parts" id="step-parts"></ul>
+      </section>
+      <section>
+        <h3>工程</h3>
+        <ol class="steps" id="step-list"></ol>
+      </section>
+    </aside>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/renderers/CSS2DRenderer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/environments/RoomEnvironment.js"></script>
+<script>
+(function () {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  if (!window.THREE || !THREE.OrbitControls || !THREE.CSS2DRenderer || !THREE.RoomEnvironment) {
+    $("step-title").textContent = "3D を読み込めませんでした";
+    $("step-text").textContent = "インターネットにつながっているか確かめて、ページを読み込み直してください。";
+    return;
+  }
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // ---------- 寸法（mm）。three.js の向き：x 右 / y 上 / z 手前。机の上面が y = 0 ----------
+  const B = { w: 280, d: 220, base: 9, wall: 9, top: 3, z: 10 };         // カウンターの箱（z は真ん中）
+  B.h = B.base + 38 + B.top;                                              // 高さ 50
+  B.zb = B.z - B.d / 2;                                                    // 後ろの面
+  B.zf = B.z + B.d / 2;                                                    // 前の面
+  const TOP_Y = B.h;                                                       // 天板の上面
+  const PLATE = { r: 75, h: 16.5 };                                        // おもちゃの皿（仮）
+  const RING = { ro: 95, ri: 81, t: 2 };                                   // 皿の置き場の輪
+  const MAG = { r: 5, t: 3 };                                              // ネオジム磁石 Φ10 × 3
+  const REED = { l: 22, s: 4, x: 11 };                                     // リードスイッチ（左の端が皿の真ん中の下に来る）
+  const M5 = { l: 48, h: 15, w: 24, x: 94, z: -55 };                       // M5StickS3（およその大きさ）
+  const NOTCH = { x0: 115, x1: 135, h: 12 };                               // 後ろの板の、USB を通す切り欠き
+  const MON = { w: 340, h: 580, t: 18, bottom: 110, z: -150, vw: 300, vh: 535 };  // 縦のモニター 24 型（仮）
+  const DESK = { w: 800, d: 600, t: 25, h: 700 };
+
+  $("spec").textContent = `カウンター W${B.w} × D${B.d} × H${B.h} ・ 天板 ${B.top} 厚 ・ 縦のモニター 24 型（仮） ・ 単位 mm`;
+
+  // ---------- レンダラー ----------
+  const view = $("viewport");
+  const renderer = new THREE.WebGLRenderer({ antialias: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  view.appendChild(renderer.domElement);
+  const labeler = new THREE.CSS2DRenderer();
+  labeler.domElement.className = "labels";
+  view.appendChild(labeler.domElement);
+
+  const scene = new THREE.Scene();
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new THREE.RoomEnvironment(), 0.04).texture;
+  const camera = new THREE.PerspectiveCamera(35, 1, 5, 20000);
+  const controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.08;
+  controls.minDistance = 120;
+  controls.maxDistance = 6000;
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x9aa59f, 0.15));
+  const sun = new THREE.DirectionalLight(0xfff3e4, 0.8);
+  sun.position.set(-600, 1600, 1200);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -700, right: 700, top: 900, bottom: -700, near: 100, far: 4000 });
+  sun.shadow.bias = -0.0004;
+  scene.add(sun);
+
+  // 色は sRGB で書き、three.js の計算用（リニア）に直して使う
+  const lin = (c) => new THREE.Color(c).convertSRGBToLinear();
+  const ENV = 0.35;   // 部屋の光の映り込みの強さ（キッチンの 3D と同じ）
+  const css = getComputedStyle(document.documentElement);
+  const ACCENT = lin(css.getPropertyValue("--accent").trim() || "#c8452c");
+  const ON = lin(css.getPropertyValue("--on").trim() || "#1f8a5b");
+  scene.background = lin(css.getPropertyValue("--viewport").trim() || "#e3e9e5");
+
+  // ---------- 材質 ----------
+  const mat = (color, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: lin(color), roughness: 0.75, metalness: 0, envMapIntensity: ENV }, o));
+  const M = {
+    ply: () => mat(0xd9bb8e, { roughness: 0.8 }),
+    plyEdge: () => mat(0xcaa777, { roughness: 0.8 }),
+    thin: () => mat(0xe7d3b1, { roughness: 0.85 }),
+    felt: () => mat(0x557862, { roughness: 1 }),
+    plate: () => mat(0xf4f1ea, { roughness: 0.35 }),
+    magnet: () => mat(0xb9bec4, { roughness: 0.3, metalness: 0.85 }),
+    reed: () => mat(0x2b2e31, { roughness: 0.5 }),
+    lead: () => mat(0xc9ccd1, { roughness: 0.3, metalness: 0.8 }),
+    wireY: () => mat(0xe2b23b, { roughness: 0.6 }),
+    wireK: () => mat(0x26292b, { roughness: 0.6 }),
+    m5: () => mat(0x41474d, { roughness: 0.55 }),
+    m5btn: () => mat(0xe38b3a, { roughness: 0.5 }),
+    screen: () => mat(0x0d1518, { roughness: 0.2, emissive: 0x000000 }),
+    usb: () => mat(0x8c939a, { roughness: 0.6 }),
+    port: () => mat(0x15181a, { roughness: 0.4 }),
+    velcro: () => mat(0x1d1f21, { roughness: 1 }),
+    monitor: () => mat(0x1b1d1f, { roughness: 0.5 }),
+    stand: () => mat(0x2c2f32, { roughness: 0.5, metalness: 0.2 }),
+    desk: () => mat(0xcdc6b9, { roughness: 0.85 }),
+    leg: () => mat(0x8f8a82, { roughness: 0.6, metalness: 0.3 }),
+  };
+
+  // ---------- 部品 ----------
+  const parts = {};
+  const pickables = [];
+  function part(id, info) {
+    const g = new THREE.Group();
+    g.name = id;
+    const p = Object.assign({ id, group: g, step: 0, ex: [0, 0, 0], label: null, edges: [], meshes: [] }, info);
+    p.home = new THREE.Vector3();
+    parts[id] = p;
+    scene.add(g);
+    return p;
+  }
+  function add(p, geo, material, pos, opts = {}) {
+    const m = new THREE.Mesh(geo, material);
+    if (pos) m.position.set(pos[0], pos[1], pos[2]);
+    if (opts.rot) m.rotation.set(opts.rot[0], opts.rot[1], opts.rot[2]);
+    m.castShadow = opts.shadow !== false;
+    m.receiveShadow = true;
+    m.userData.part = p.id;
+    p.group.add(m);
+    p.meshes.push(m);
+    pickables.push(m);
+    if (opts.edges !== false && !opts.noEdges) {
+      const e = new THREE.LineSegments(new THREE.EdgesGeometry(geo, 30), new THREE.LineBasicMaterial({ color: ACCENT }));
+      e.position.copy(m.position);
+      e.rotation.copy(m.rotation);
+      e.visible = false;
+      p.group.add(e);
+      p.edges.push(e);
+    }
+    return m;
+  }
+  const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
+  function setLabel(p, text, at) {
+    const el = document.createElement("div");
+    el.className = "label";
+    el.textContent = text;
+    const o = new THREE.CSS2DObject(el);
+    o.position.set(at[0], at[1], at[2]);
+    p.group.add(o);
+    p.label = o;
+    p.labelEl = el;
+  }
+
+  // 机と縦のモニター（場所の目安）
+  const desk = part("desk", { name: "机（お客さんのモニターの台）", dims: `${DESK.w} × ${DESK.d}（仮）`, note: "縦のモニターをのせる机。大きさは仮", context: true });
+  add(desk, box(DESK.w, DESK.t, DESK.d), M.desk(), [0, -DESK.t / 2, 0], { noEdges: true });
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+    add(desk, box(40, DESK.h - DESK.t, 40), M.leg(), [sx * (DESK.w / 2 - 40), -DESK.t - (DESK.h - DESK.t) / 2, sz * (DESK.d / 2 - 40)], { noEdges: true });
+  }
+
+  // 縦のモニターの画面（キャンバスに描く）
+  const screenCanvas = document.createElement("canvas");
+  screenCanvas.width = 300;
+  screenCanvas.height = 535;
+  const screenTex = new THREE.CanvasTexture(screenCanvas);
+  screenTex.encoding = THREE.sRGBEncoding;
+  function drawScreen(served) {
+    const g = screenCanvas.getContext("2d");
+    const W = screenCanvas.width, H = screenCanvas.height;
+    const sky = g.createLinearGradient(0, 0, 0, H);
+    sky.addColorStop(0, "#f4e7d3");
+    sky.addColorStop(1, "#e2cdb0");
+    g.fillStyle = sky;
+    g.fillRect(0, 0, W, H);
+    // 壁と床
+    g.fillStyle = "#cdb08a";
+    g.fillRect(0, H * 0.62, W, H * 0.38);
+    // クマ（オリジナルの丸いクマ）
+    const cx = W / 2, cy = H * 0.42;
+    g.fillStyle = "#8a5a3b";
+    for (const dx of [-38, 38]) { g.beginPath(); g.arc(cx + dx, cy - 44, 16, 0, Math.PI * 2); g.fill(); }
+    g.beginPath(); g.arc(cx, cy, 52, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.ellipse(cx, cy + 95, 62, 58, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#e9c9a6";
+    g.beginPath(); g.ellipse(cx, cy + 14, 22, 16, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = "#2a1c14";
+    for (const dx of [-18, 18]) { g.beginPath(); g.arc(cx + dx, cy - 6, 5, 0, Math.PI * 2); g.fill(); }
+    g.beginPath(); g.arc(cx, cy + 9, 5, 0, Math.PI * 2); g.fill();
+    if (served) {
+      g.strokeStyle = "#2a1c14"; g.lineWidth = 3;
+      g.beginPath(); g.arc(cx, cy + 16, 10, 0.15 * Math.PI, 0.85 * Math.PI); g.stroke();
+    }
+    // テーブル
+    g.fillStyle = "#6e4a33";
+    g.fillRect(20, H * 0.66, W - 40, 16);
+    // 皿
+    if (served) {
+      g.fillStyle = "#ffffff";
+      g.beginPath(); g.ellipse(cx, H * 0.655, 70, 16, 0, 0, Math.PI * 2); g.fill();
+      g.fillStyle = "#e07a2c";
+      for (let i = 0; i < 6; i++) { g.beginPath(); g.ellipse(cx - 40 + i * 16, H * 0.648 - (i % 2) * 3, 8, 5, 0.3, 0, Math.PI * 2); g.fill(); }
+    }
+    // 札
+    g.fillStyle = served ? "#1f8a5b" : "rgba(29,38,34,0.75)";
+    g.fillRect(20, 24, W - 40, 56);
+    g.fillStyle = "#ffffff";
+    g.font = "700 22px 'Hiragino Sans', 'Yu Gothic', sans-serif";
+    g.textAlign = "center";
+    g.fillText(served ? "料理が届いた！" : "お客さんの画面", W / 2, 60);
+    g.font = "15px 'Hiragino Sans', 'Yu Gothic', sans-serif";
+    g.fillStyle = "#4b3a2c";
+    g.fillText(served ? "いただきます" : "（縦のモニター）", W / 2, H - 30);
+    screenTex.needsUpdate = true;
+  }
+  drawScreen(false);
+
+  const mon = part("monitor", { name: "縦のモニター（お客さん）", dims: "24 型を縦（仮）", note: "お客さんの画面。カウンターはこの目の前に置く", context: true });
+  const monY = MON.bottom + MON.h / 2;
+  add(mon, box(MON.w, MON.h, MON.t), M.monitor(), [0, monY, MON.z], { noEdges: true });
+  const screenMesh = new THREE.Mesh(new THREE.PlaneGeometry(MON.vw, MON.vh), new THREE.MeshBasicMaterial({ map: screenTex, toneMapped: false }));
+  screenMesh.position.set(0, monY + 6, MON.z + MON.t / 2 + 0.6);
+  screenMesh.userData.part = "monitor";
+  mon.group.add(screenMesh);
+  pickables.push(screenMesh);
+  add(mon, box(220, 5, 170), M.stand(), [0, 2.5, -170], { noEdges: true });
+  add(mon, box(50, 415, 25), M.stand(), [0, 5 + 415 / 2, -185], { noEdges: true });
+  add(mon, box(90, 90, 14), M.stand(), [0, monY, MON.z - MON.t / 2 - 7], { noEdges: true });
+
+  // 箱
+  const base = part("base", { step: 1, name: "底板", dims: `${B.w} × ${B.d} × ${B.base}`, note: "合板 9mm。下に滑り止めシートを貼る", ex: [0, 0, 0] });
+  add(base, box(B.w, B.base, B.d), M.ply(), [0, B.base / 2, B.z]);
+  setLabel(base, "底板", [-B.w / 2 + 30, B.base, B.zf]);
+
+  const wallH = B.h - B.base - B.top;   // 38
+  const wallY = B.base + wallH / 2;
+  const front = part("front", { step: 1, name: "前の板", dims: `${B.w} × ${wallH} × ${B.wall}`, note: "合板 9mm。底板の上にのせて、下からビスで留める", ex: [0, 0, 70] });
+  add(front, box(B.w, wallH, B.wall), M.ply(), [0, wallY, B.zf - B.wall / 2]);
+  setLabel(front, "前の板", [0, B.h, B.zf]);
+
+  // 後ろの板（USB を通す切り欠き付き）
+  const back = part("back", { step: 1, name: "後ろの板", dims: `${B.w} × ${wallH} × ${B.wall}`, note: `右の下に USB を通す切り欠き（幅 ${NOTCH.x1 - NOTCH.x0} × 高さ ${NOTCH.h}）`, ex: [0, 0, -70] });
+  {
+    const s = new THREE.Shape();
+    const hw = B.w / 2;
+    s.moveTo(-hw, 0); s.lineTo(NOTCH.x0, 0); s.lineTo(NOTCH.x0, NOTCH.h); s.lineTo(NOTCH.x1, NOTCH.h);
+    s.lineTo(NOTCH.x1, 0); s.lineTo(hw, 0); s.lineTo(hw, wallH); s.lineTo(-hw, wallH); s.lineTo(-hw, 0);
+    const geo = new THREE.ExtrudeGeometry(s, { depth: B.wall, bevelEnabled: false });
+    add(back, geo, M.ply(), [0, B.base, B.zb]);
+  }
+  setLabel(back, "後ろの板（USB の切り欠き）", [NOTCH.x1, B.h + 6, B.zb]);
+
+  const sideD = B.d - 2 * B.wall;
+  const left = part("left", { step: 1, name: "横の板（左）", dims: `${sideD} × ${wallH} × ${B.wall}`, note: "前と後ろの板の間に入れる", ex: [-70, 0, 0] });
+  add(left, box(B.wall, wallH, sideD), M.ply(), [-B.w / 2 + B.wall / 2, wallY, B.z]);
+  const right = part("right", { step: 1, name: "横の板（右）", dims: `${sideD} × ${wallH} × ${B.wall}`, note: "前と後ろの板の間に入れる", ex: [70, 0, 0] });
+  add(right, box(B.wall, wallH, sideD), M.ply(), [B.w / 2 - B.wall / 2, wallY, B.z]);
+  setLabel(left, "横の板", [-B.w / 2, B.h, B.z]);
+
+  // M5StickS3
+  const m5 = part("m5", { step: 2, name: "M5StickS3", dims: `約 ${M5.l} × ${M5.w} × ${M5.h}`, note: "画面を上にして、面ファスナーで底板に留める。電源は USB でつなぎっぱなし", ex: [0, 40, 0] });
+  const m5y = B.base + 2 + M5.h / 2;
+  add(m5, box(M5.l, 2, M5.w - 2), M.velcro(), [M5.x, B.base + 1, M5.z], { noEdges: true });
+  add(m5, box(M5.l, M5.h, M5.w), M.m5(), [M5.x, m5y, M5.z]);
+  const m5Screen = add(m5, new THREE.PlaneGeometry(22, 17), M.screen(), [M5.x - 6, B.base + 2 + M5.h + 0.3, M5.z], { rot: [-Math.PI / 2, 0, 0], noEdges: true, shadow: false });
+  add(m5, box(8, 2, 10), M.m5btn(), [M5.x + 14, B.base + 2 + M5.h + 1, M5.z], { noEdges: true });
+  add(m5, box(2, 4, 9), M.port(), [M5.x + M5.l / 2 + 0.6, m5y, M5.z], { noEdges: true });
+  setLabel(m5, "M5StickS3", [M5.x, B.base + M5.h + 14, M5.z]);
+
+  // リードスイッチ（天板の裏）
+  const reedY = TOP_Y - B.top - REED.s / 2 - 0.2;
+  const reed = part("reed", { step: 3, name: "リードスイッチ", dims: `長さ 約 ${REED.l}（樹脂で包まれたもの）`, note: "天板の裏に、テープかホットボンドで貼る。左の端が皿の真ん中の真下に来るように", ex: [0, 120, 0] });
+  const reedBody = add(reed, box(REED.l, REED.s, REED.s), M.reed(), [REED.x, reedY, B.z]);
+  add(reed, new THREE.CylinderGeometry(0.5, 0.5, 8, 8), M.lead(), [REED.x - REED.l / 2 - 4, reedY, B.z], { rot: [0, 0, Math.PI / 2], noEdges: true });
+  add(reed, new THREE.CylinderGeometry(0.5, 0.5, 8, 8), M.lead(), [REED.x + REED.l / 2 + 4, reedY, B.z], { rot: [0, 0, Math.PI / 2], noEdges: true });
+  setLabel(reed, "リードスイッチ（天板の裏）", [REED.x - 40, reedY - 4, B.z + 30]);
+
+  // 線（リードスイッチ → M5StickS3）。分解に合わせて作り直す
+  const wires = part("wires", { step: 3, name: "ジャンパーワイヤー 2 本", dims: "長さ 15〜20cm", note: "リードスイッチの足 2 本を、M5StickS3 の端子の「信号のピン」と「GND」につなぐ。どのピンを使うかはファームを作るときに決める", ex: [0, 0, 0] });
+  const wireMats = [M.wireY(), M.wireK()];
+  const wireMeshes = wireMats.map((m) => {
+    const mesh = new THREE.Mesh(new THREE.BufferGeometry(), m);
+    mesh.castShadow = true;
+    mesh.userData.part = "wires";
+    wires.group.add(mesh);
+    wires.meshes.push(mesh);
+    pickables.push(mesh);
+    return mesh;
+  });
+  setLabel(wires, "ジャンパーワイヤー", [40, B.base + 26, -20]);
+
+  // USB ケーブル
+  const usb = part("usb", { step: 2, name: "USB-C ケーブル", dims: "1〜2m", note: "後ろの板の切り欠きから出して、PC か USB の電源につなぐ", ex: [0, 0, 0] });
+  const usbMesh = new THREE.Mesh(new THREE.BufferGeometry(), M.usb());
+  usbMesh.castShadow = true;
+  usbMesh.userData.part = "usb";
+  usb.group.add(usbMesh);
+  usb.meshes.push(usbMesh);
+  pickables.push(usbMesh);
+  setLabel(usb, "USB ケーブル（PC か電源へ）", [150, 20, -230]);
+
+  // 天板と輪
+  const top = part("top", { step: 4, name: "天板", dims: `${B.w} × ${B.d} × ${B.top}`, note: "薄い板（MDF かシナベニヤ 2.5〜3mm）。厚いと磁石が届かない。裏にリードスイッチを貼ってからのせる", ex: [0, 120, 0] });
+  add(top, box(B.w, B.top, B.d), M.thin(), [0, TOP_Y - B.top / 2, B.z]);
+  setLabel(top, "天板（薄い板）", [B.w / 2 - 50, TOP_Y, B.zf]);
+
+  const ring = part("ring", { step: 4, name: "皿の置き場の輪", dims: `外 Φ${RING.ro * 2} ・ 内 Φ${RING.ri * 2} ・ 厚さ ${RING.t}`, note: "フェルトか薄い板を輪に切って貼る。皿がいつも同じ所（スイッチの上）に置かれるように", ex: [0, 150, 0] });
+  {
+    const s = new THREE.Shape();
+    s.absarc(0, 0, RING.ro, 0, Math.PI * 2, false);
+    const hole = new THREE.Path();
+    hole.absarc(0, 0, RING.ri, 0, Math.PI * 2, true);
+    s.holes.push(hole);
+    const geo = new THREE.ExtrudeGeometry(s, { depth: RING.t, bevelEnabled: false, curveSegments: 64 });
+    add(ring, geo, M.felt(), [0, TOP_Y, B.z], { rot: [-Math.PI / 2, 0, 0], noEdges: true });
+  }
+  setLabel(ring, "皿の置き場の輪", [-RING.ro, TOP_Y + 4, B.z + 30]);
+
+  // 皿と磁石
+  const plate = part("plate", { step: 5, name: "おもちゃの皿", dims: `Φ${PLATE.r * 2}（仮）`, note: "今使っているおもちゃの皿", ex: [0, 220, 0] });
+  {
+    const pts = [[0.01, 3], [44, 3], [45, 0], [48, 0], [49, 3], [73, 14], [75, 16.5], [73.5, 17], [52, 5.5], [0.01, 5.5]].map(([x, y]) => new THREE.Vector2(x, y));
+    add(plate, new THREE.LatheGeometry(pts, 64), Object.assign(M.plate(), { side: THREE.DoubleSide }), [0, TOP_Y, B.z], { noEdges: true });
+  }
+  setLabel(plate, "おもちゃの皿", [PLATE.r, TOP_Y + 22, B.z]);
+
+  const magnet = part("magnet", { step: 5, name: "ネオジム磁石", dims: `Φ${MAG.r * 2} × ${MAG.t}`, note: "皿の裏の真ん中に、強力な両面テープか接着剤で貼る。皿の足の高さに収まる", ex: [0, 196, 0] });
+  add(magnet, new THREE.CylinderGeometry(MAG.r, MAG.r, MAG.t, 32), M.magnet(), [0, TOP_Y + MAG.t / 2, B.z]);
+  setLabel(magnet, "磁石（皿の裏）", [-30, TOP_Y - 6, B.z + 20]);
+
+  // 電波（BLE）の輪
+  const waves = [0, 1, 2].map(() => {
+    const m = new THREE.Mesh(new THREE.TorusGeometry(1, 0.6, 8, 64), new THREE.MeshBasicMaterial({ color: ON, transparent: true, opacity: 0, depthWrite: false }));
+    m.rotation.x = -Math.PI / 2;
+    m.visible = false;
+    scene.add(m);
+    return m;
+  });
+
+  // ---------- 線を引き直す ----------
+  const off = (id) => parts[id].group.position;
+  function tube(points, r) {
+    return new THREE.TubeGeometry(new THREE.CatmullRomCurve3(points, false, "catmullrom", 0.3), 64, r, 8, false);
+  }
+  function rebuildWires() {
+    const ro = off("reed"), mo = off("m5");
+    const ends = [REED.x - REED.l / 2 - 8, REED.x + REED.l / 2 + 8];
+    ends.forEach((ex, i) => {
+      const a = new THREE.Vector3(ex, reedY, B.z).add(ro);
+      const b = new THREE.Vector3(M5.x - M5.l / 2 - 0.5, m5y + 3 - i * 4, M5.z + (i ? 4 : -4)).add(mo);
+      const pts = [
+        a,
+        a.clone().add(new THREE.Vector3(i ? 6 : -6, -10, 0)),
+        new THREE.Vector3((a.x + b.x) / 2 + (i ? 10 : -10), B.base + 6 + Math.min(ro.y, mo.y) * 0.5, (a.z + b.z) / 2 + (i ? 6 : -6)),
+        b.clone().add(new THREE.Vector3(-14, 0, 0)),
+        b,
+      ];
+      wireMeshes[i].geometry.dispose();
+      wireMeshes[i].geometry = tube(pts, 0.9);
+    });
+    const u0 = new THREE.Vector3(M5.x + M5.l / 2 + 1.5, m5y, M5.z).add(mo);
+    const nx = (NOTCH.x0 + NOTCH.x1) / 2;
+    const bo = off("back");
+    const pts = [
+      u0,
+      u0.clone().add(new THREE.Vector3(8, 0, 0)),
+      new THREE.Vector3(nx, B.base + 5, B.zb + 14).add(bo.clone().multiplyScalar(0.5)),
+      new THREE.Vector3(nx, B.base + 5, B.zb + B.wall / 2).add(bo),
+      new THREE.Vector3(nx, 3, B.zb - 30).add(bo),
+      new THREE.Vector3(nx + 6, 2.2, -200),
+      new THREE.Vector3(nx + 10, 2.2, -DESK.d / 2 + 6),
+      new THREE.Vector3(nx + 10, -20, -DESK.d / 2 - 6),
+      new THREE.Vector3(nx + 10, -260, -DESK.d / 2 - 8),
+    ];
+    usbMesh.geometry.dispose();
+    usbMesh.geometry = tube(pts, 2);
+  }
+
+  // ---------- 工程 ----------
+  const STEPS = [
+    {
+      title: "置く場所", view: "iso", all: true,
+      text: "縦のモニター（お客さんの画面）の目の前に、皿を置くカウンターを置く。皿を置くと、皿の裏の磁石でスイッチが入り、お客さんの画面に料理が届く。",
+      tips: ["カウンターは W280 × D220 × H50。中に M5StickS3 とリードスイッチが入る", "滑らないように、底に滑り止めシートを貼る", "キッチンとの並び（横か向かいか）はまだ決めていない"],
+    },
+    {
+      title: "底板と枠を作る", view: "close", parts: ["base", "front", "back", "left", "right"],
+      text: "底板の上に、前・後ろ・左右の板を立てて四角い枠にする。後ろの板の右下には、USB ケーブルを通す切り欠きを作る。",
+      tips: ["板どうしはボンドと細いビスで留める（ビスの下穴を開ける）", "100 円ショップの木箱を逆さにして使ってもいい。そのときは、上になる面（箱の底）が 3mm くらいの薄い板のものを選ぶ"],
+    },
+    {
+      title: "M5StickS3 と USB ケーブル", view: "inside", parts: ["m5", "usb"],
+      text: "M5StickS3 を画面を上にして、面ファスナーで底板の右奥に留める。USB-C ケーブルをさして、後ろの板の切り欠きから外に出す。",
+      tips: ["展示中はずっと USB から電源を取る（電池切れにならない）", "面ファスナーなら、書き込みや充電のときに外せる", "ケーブルは机の後ろから下ろし、モニターの後ろの PC か USB の電源につなぐ"],
+    },
+    {
+      title: "リードスイッチを天板の裏に貼る", view: "under", parts: ["reed", "wires"],
+      text: "リードスイッチを天板の裏に貼る。足 2 本にジャンパーワイヤーをつなぎ、M5StickS3 の端子の「信号のピン」と「GND」にさす。",
+      tips: ["磁石が真上に来るより、スイッチの端の上に来る方が入りやすいことが多い。まずテープで仮に留めて、皿を置いて反応する所を探してから固定する", "スイッチの足は細くて折れやすい。曲げるときは根元を押さえる", "どのピンを使うかはファームを作るときに決めて、device/README.md に書く"],
+    },
+    {
+      title: "天板をのせ、皿の置き場の輪を貼る", view: "close", parts: ["top", "ring"],
+      text: "リードスイッチを貼った天板を、枠の上にのせる。天板の上には、皿の置き場がわかる輪を貼る。輪の真ん中が、スイッチの上に来るようにする。",
+      tips: ["天板は 2.5〜3mm の薄い板。厚いと磁石が届かない", "中を直せるように、天板はビスだけで留める（ボンドを使わない）", "輪はフェルトなら貼るだけ。皿が輪の中に入れば、いつも同じ所に置かれる"],
+    },
+    {
+      title: "皿の裏に磁石を貼る", view: "below", parts: ["plate", "magnet"], lift: 130,
+      text: "おもちゃの皿の裏の真ん中に、ネオジム磁石を貼る。皿の足の高さ（3mm くらい）に収まるので、皿はがたつかない。",
+      tips: ["強力な両面テープか、プラスチックにも付く接着剤で貼る", "磁石で付く式のおもちゃの野菜をカウンターに置くと、スイッチが入ることがある。実物で試す", "皿は 2 枚用意して、両方に磁石を貼っておくと安心"],
+    },
+    {
+      title: "動かしてみる", view: "play", all: true, play: true,
+      text: "皿をのせると、磁石でリードスイッチが入る。M5StickS3 が BLE でサーバーに「皿が置かれた」を送り、サーバーが画面に「提供」を出す。お客さんの画面に料理が届く。",
+      tips: ["データは要件定義書 6.2 の switch：{\"event\": \"switch\", \"name\": \"serve\", \"on\": true}", "ファームにはスイッチを読む所を、サーバーには switch を受けたら serve を出す所を足す（まだない）", "皿をどけてすぐ置き直しても 2 回出ないように、サーバーで間を空ける"],
+    },
+  ];
+
+  const VIEWS = {
+    iso: { target: [0, 210, -30], off: [720, 400, 950] },
+    close: { target: [0, 25, B.z], off: [330, 300, 420] },
+    inside: { target: [60, 20, -30], off: [300, 360, 400] },
+    under: { target: [40, 35, -10], off: [250, 230, 360] },
+    below: { target: [0, 170, B.z], off: [300, -30, 460] },
+    play: { target: [0, 220, -60], off: [700, 260, 920] },
+    front: { target: [0, 260, 0], off: [0, 120, 1500] },
+    top: { target: [0, 0, -40], off: [0, 1500, 1] },
+  };
+
+  let step = 0;
+  let explode = 0, explodeTo = 0;
+  let lift = 0, liftTo = 0;
+  let playT = 0;
+  let camAnim = null;
+  const t0 = { ghost: true, labels: false, inside: false };
+
+  const NEAR = new Set(["close", "inside", "under"]);
+  let curView = "iso";
+  function setView(name, instant) {
+    const v = VIEWS[name];
+    if (!v) return;
+    curView = name;
+    // 分解しているときは、近くで見る向きを少し引いて上げる（ばらした部品が入るように）
+    const wide = explodeTo && NEAR.has(name);
+    const to = new THREE.Vector3(...v.target).add(new THREE.Vector3(0, wide ? 60 : 0, 0));
+    const pos = to.clone().add(new THREE.Vector3(...v.off).multiplyScalar(wide ? 1.7 : 1));
+    document.querySelectorAll("[data-view]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.view === name)));
+    if (instant || reduceMotion) {
+      controls.target.copy(to);
+      camera.position.copy(pos);
+      camAnim = null;
+      return;
+    }
+    camAnim = { t: 0, fromT: controls.target.clone(), fromP: camera.position.clone(), toT: to, toP: pos };
+  }
+
+  function stepState(p) {
+    const s = STEPS[step];
+    if (p.context || s.all) return "done";
+    if (p.step < step) return "done";
+    if (p.step === step) return "now";
+    return "later";
+  }
+
+  function applyLook() {
+    const s = STEPS[step];
+    for (const p of Object.values(parts)) {
+      const st = stepState(p);
+      // 「中を見る」：天板・輪・前の板・皿をうすく。動かしてみるときは、天板と前の板だけ少しうすくしてスイッチを見せる
+      const inside = t0.inside && (p.id === "top" || p.id === "ring" || p.id === "front" || p.id === "plate" || p.id === "magnet");
+      const peek = !inside && s.play && (p.id === "top" || p.id === "front");
+      const ghost = st === "later" || inside || peek;
+      p.group.visible = !(st === "later" && !t0.ghost);
+      for (const m of p.meshes) {
+        m.material.transparent = ghost;
+        m.material.opacity = ghost ? (peek ? 0.45 : inside ? 0.18 : 0.12) : 1;
+        m.material.depthWrite = !ghost;
+        m.castShadow = !ghost;
+        if (m !== m5Screen) m.material.emissive && m.material.emissive.setRGB(0, 0, 0);
+        if (st === "now" && m.material.emissive) m.material.emissive.copy(ACCENT).multiplyScalar(0.18);
+      }
+      for (const e of p.edges) e.visible = st === "now";
+      if (p.label) {
+        const show = (st === "now" && !s.all) || (t0.labels && st !== "later");
+        p.label.visible = show;
+        p.labelEl.classList.toggle("new", st === "now");
+      }
+    }
+    paintSwitch();
+  }
+
+  function renderPanel() {
+    const s = STEPS[step];
+    $("step-count").textContent = `工程 ${step + 1} / ${STEPS.length}`;
+    $("step-title").textContent = s.title;
+    $("step-text").textContent = s.text;
+    const tips = $("step-tips");
+    tips.replaceChildren(...s.tips.map((t) => Object.assign(document.createElement("li"), { textContent: t })));
+    $("key").hidden = !!s.all;
+    $("prev").disabled = step === 0;
+    $("next").disabled = step === STEPS.length - 1;
+    $("next").textContent = step === STEPS.length - 1 ? "おわり" : "次へ ▶";
+    const ids = s.all ? Object.keys(parts).filter((id) => !parts[id].context) : s.parts;
+    $("parts-heading").textContent = s.all ? "使うもの（全部）" : "この工程で付けるもの";
+    const list = $("step-parts");
+    list.replaceChildren(...ids.map((id) => {
+      const p = parts[id];
+      const li = document.createElement("li");
+      li.innerHTML = `<span class="nm"></span><span class="dims"></span><span class="sub"></span>`;
+      li.querySelector(".nm").textContent = p.name;
+      li.querySelector(".dims").textContent = p.dims;
+      li.querySelector(".sub").textContent = p.note;
+      return li;
+    }));
+    document.querySelectorAll(".steps button").forEach((b, i) => {
+      if (i === step) b.setAttribute("aria-current", "step");
+      else b.removeAttribute("aria-current");
+    });
+    $("flow").hidden = !s.play;
+  }
+
+  function go(i) {
+    step = Math.max(0, Math.min(STEPS.length - 1, i));
+    const s = STEPS[step];
+    liftTo = s.lift || 0;
+    playT = 0;
+    setServed(false, false);
+    renderPanel();
+    applyLook();
+    setView(s.view);
+  }
+
+  // 工程の一覧
+  $("step-list").replaceChildren(...STEPS.map((s, i) => {
+    const li = document.createElement("li");
+    const b = document.createElement("button");
+    b.type = "button";
+    b.innerHTML = `<span class="n">${String(i + 1).padStart(2, "0")}</span><span class="t"></span>`;
+    b.querySelector(".t").textContent = s.title;
+    b.addEventListener("click", () => go(i));
+    li.appendChild(b);
+    return li;
+  }));
+  $("prev").addEventListener("click", () => go(step - 1));
+  $("next").addEventListener("click", () => go(step + 1));
+  document.querySelectorAll("[data-view]").forEach((b) => b.addEventListener("click", () => setView(b.dataset.view)));
+  $("t-explode").addEventListener("change", (e) => {
+    explodeTo = e.target.checked ? 1 : 0;
+    if (NEAR.has(curView)) setView(curView);
+  });
+  $("t-labels").addEventListener("change", (e) => { t0.labels = e.target.checked; applyLook(); });
+  $("t-ghost").addEventListener("change", (e) => { t0.ghost = e.target.checked; applyLook(); });
+  $("t-inside").addEventListener("change", (e) => { t0.inside = e.target.checked; applyLook(); });
+  document.addEventListener("keydown", (e) => {
+    if (e.target.closest && e.target.closest("input, textarea")) return;
+    if (e.key === "ArrowRight") go(step + 1);
+    if (e.key === "ArrowLeft") go(step - 1);
+  });
+
+  // ---------- 部品を選ぶ ----------
+  const ray = new THREE.Raycaster();
+  let down = null;
+  renderer.domElement.addEventListener("pointerdown", (e) => { down = [e.clientX, e.clientY]; });
+  renderer.domElement.addEventListener("pointerup", (e) => {
+    if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return;
+    const r = renderer.domElement.getBoundingClientRect();
+    ray.setFromCamera({ x: ((e.clientX - r.left) / r.width) * 2 - 1, y: -((e.clientY - r.top) / r.height) * 2 + 1 }, camera);
+    const hit = ray.intersectObjects(pickables.filter((m) => m.visible && m.parent.visible), false)
+      .find((h) => !(h.object.material.transparent && h.object.material.opacity < 0.5));
+    const sec = $("picked");
+    if (!hit) { sec.hidden = true; return; }
+    const p = parts[hit.object.userData.part];
+    const body = $("picked-body");
+    body.innerHTML = `<p class="nm"></p><p class="dims" style="text-align:left"></p><p class="sub"></p>`;
+    body.querySelector(".nm").textContent = p.name;
+    body.querySelector(".dims").textContent = p.dims;
+    body.querySelector(".sub").textContent = p.note;
+    sec.hidden = false;
+  });
+
+  // ---------- 提供の動き ----------
+  let served = false, switchOn = false;
+  function paintSwitch() {
+    const now = stepState(parts.reed) === "now";
+    if (switchOn) reedBody.material.emissive.copy(ON).multiplyScalar(0.9);
+    else if (now) reedBody.material.emissive.copy(ACCENT).multiplyScalar(0.18);
+    else reedBody.material.emissive.setRGB(0, 0, 0);
+    m5Screen.material.emissive.copy(switchOn ? lin(0x3fbf86) : lin(0x000000));
+    parts.reed.labelEl.textContent = switchOn ? "スイッチ 入" : "リードスイッチ（天板の裏）";
+    if (STEPS[step].play) parts.reed.label.visible = switchOn || t0.labels;
+  }
+  function setServed(on, sw) {
+    if (sw !== switchOn) {
+      switchOn = sw;
+      paintSwitch();
+    }
+    if (on !== served) {
+      served = on;
+      drawScreen(on);
+    }
+  }
+  const FLOW = $("flow").children;
+  function flowAt(i) { for (let k = 0; k < FLOW.length; k++) FLOW[k].classList.toggle("on", k === i); }
+  const CYCLE = 6.5;
+  function playStep(dt) {
+    if (reduceMotion) {
+      lift = 0;
+      setServed(true, true);
+      flowAt(4);
+      return;
+    }
+    playT = (playT + dt) % CYCLE;
+    const t = playT;
+    const ease = (x) => x * x * (3 - 2 * x);
+    if (t < 0.8) lift = 140;
+    else if (t < 1.8) lift = 140 * (1 - ease((t - 0.8) / 1.0));
+    else if (t < 5.0) lift = 0;
+    else if (t < 5.9) lift = 140 * ease((t - 5.0) / 0.9);
+    else lift = 140;
+    const sw = t >= 1.8 && t < 5.0;
+    setServed(t >= 3.0 && t < 5.9, sw);
+    flowAt(t < 0.8 ? -1 : t < 1.8 ? 0 : t < 1.95 ? 1 : t < 2.6 ? 2 : t < 3.0 ? 3 : t < 5.9 ? 4 : -1);
+    // 電波
+    const src = new THREE.Vector3(M5.x, B.h + 4, M5.z).add(off("m5"));
+    waves.forEach((w, i) => {
+      const k = (t - 1.9 - i * 0.22) / 0.9;
+      const show = k > 0 && k < 1;
+      w.visible = show;
+      if (show) {
+        w.position.copy(src).add(new THREE.Vector3(0, k * 60, 0));
+        w.scale.setScalar(20 + k * 160);
+        w.material.opacity = 0.65 * (1 - k);
+      }
+    });
+  }
+
+  // ---------- 毎フレーム ----------
+  function resize() {
+    const w = view.clientWidth, h = view.clientHeight;
+    renderer.setSize(w, h, false);
+    renderer.domElement.style.width = w + "px";
+    renderer.domElement.style.height = h + "px";
+    labeler.setSize(w, h);
+    camera.aspect = w / Math.max(1, h);
+    camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(resize).observe(view);
+  resize();
+
+  let last = performance.now();
+  let lastExplode = -1, lastLift = -1;
+  function frame(now) {
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    const s = STEPS[step];
+    const k = reduceMotion ? 1 : Math.min(1, dt * 6);
+    explode += (explodeTo - explode) * k;
+    if (Math.abs(explodeTo - explode) < 0.001) explode = explodeTo;
+    if (s.play) playStep(dt);
+    else {
+      lift += (liftTo - lift) * k;
+      if (Math.abs(liftTo - lift) < 0.05) lift = liftTo;
+      waves.forEach((w) => (w.visible = false));
+    }
+    if (explode !== lastExplode || lift !== lastLift) {
+      for (const p of Object.values(parts)) {
+        p.group.position.set(p.ex[0] * explode, p.ex[1] * explode, p.ex[2] * explode);
+      }
+      for (const id of ["plate", "magnet"]) parts[id].group.position.y += lift;
+      rebuildWires();
+      lastExplode = explode;
+      lastLift = lift;
+    }
+    if (camAnim) {
+      camAnim.t = Math.min(1, camAnim.t + dt / 0.7);
+      const e = camAnim.t * camAnim.t * (3 - 2 * camAnim.t);
+      controls.target.lerpVectors(camAnim.fromT, camAnim.toT, e);
+      camera.position.lerpVectors(camAnim.fromP, camAnim.toP, e);
+      if (camAnim.t >= 1) camAnim = null;
+    }
+    controls.update();
+    renderer.render(scene, camera);
+    labeler.render(scene, camera);
+    requestAnimationFrame(frame);
+  }
+  controls.addEventListener("start", () => { camAnim = null; curView = ""; document.querySelectorAll("[data-view]").forEach((b) => b.setAttribute("aria-pressed", "false")); });
+
+  window.__go = go;   // 確認用
+  window.__play = (t) => { playT = t; };
+  go(0);
+  setView("iso", true);
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
