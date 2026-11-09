@@ -63,8 +63,8 @@ namespace Omamagoto.Tests
             string[] expected =
             {
                 "reset", "carrot",
-                "swing", "cut:2", "swing", "cut:3", "swing", "cut:4",
-                "knife:hidden", "add:4", "fire:2",
+                "swing", "cut:2",
+                "knife:hidden", "add:2", "fire:2",
                 "salt:0.5", "salt:1", "salt:1.5", "salt:2", "salt:2.5", "salt:3",
                 "pepper:0.5", "pepper:1",
                 "fire:0", "serve:86",

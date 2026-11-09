@@ -33,12 +33,8 @@ namespace Omamagoto.Testing
         {
             new[] { 0.6f, 1.75f, 0.78f, 2.25f, 0.50f },
             new[] { 2.2f, 0.66f, 0.66f, 1.12f, 0.36f },
-            new[] { 3.6f, 0.66f, 0.66f, 1.12f, 0.36f },
-            new[] { 4.1f, 0.55f, 0.68f, 1.01f, 0.38f },
-            new[] { 5.0f, 0.55f, 0.68f, 1.01f, 0.38f },
-            new[] { 5.5f, 0.44f, 0.70f, 0.90f, 0.40f },
-            new[] { 6.5f, 0.44f, 0.70f, 0.90f, 0.40f },
-            new[] { 7.8f, 1.70f, 0.85f, 2.20f, 0.60f },
+            new[] { 3.8f, 0.66f, 0.66f, 1.12f, 0.36f },
+            new[] { 5.1f, 1.70f, 0.85f, 2.20f, 0.60f },
         };
 
         /// <summary>台本の 1 行：「この時刻に、これをする」</summary>
@@ -146,17 +142,13 @@ namespace Omamagoto.Testing
             At(0.0f, () => sender.Reset());
             At(0.2f, () => sender.CarrotPosition(0.48f, 0.5f, 12f));
 
-            // 3 回切る（ピースが 2 → 3 → 4 個）
+            // 1 回切る（おもちゃは 2 つに分かれる。画面では一気に輪切りになる）
             At(2.9f, () => sender.Swing());
             At(3.3f, () => sender.Cut(2));
-            At(4.6f, () => sender.Swing());
-            At(4.95f, () => sender.Cut(3));
-            At(6.0f, () => sender.Swing());
-            At(6.35f, () => sender.Cut(4));
-            At(8.0f, () => sender.KnifeHidden());
+            At(5.3f, () => sender.KnifeHidden());
 
             // フライパンに入れて、火をつける
-            At(9.0f, () => sender.AddToPan(4));
+            At(9.0f, () => sender.AddToPan(2));
             At(10.4f, () => sender.Fire(2));
 
             // 塩を 6 回、こしょうを 2 回振る（0.5 g ずつ）

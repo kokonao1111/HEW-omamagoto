@@ -51,7 +51,7 @@ namespace Omamagoto.Editor
         public static Material ApplianceWhite => Plain("ApplianceWhite", new Color(0.92f, 0.92f, 0.91f), smoothness: 0.62f);
         public static Material SmokedGlass => Transparent("SmokedGlass", new Color(0.02f, 0.02f, 0.025f, 0.6f), smoothness: 0.97f);
         public static Material DoorPrint => Plain("DoorPrint", new Color(0.012f, 0.012f, 0.014f), smoothness: 0.5f);
-        public static Material MicrowaveMesh => Cutout("MicrowaveMesh", "generated/microwave_mesh.png", sizeMeters: 0.03f, smoothness: 0.4f, metallic: 0.6f);
+        public static Material MicrowaveMesh => PerforatedMetal("MicrowaveMesh", "generated/microwave_mesh.png", sizeMeters: 0.03f, smoothness: 0.4f, metallic: 0.6f);
         public static Material MicrowaveCavity => Glowing("MicrowaveCavity", new Color(1f, 0.82f, 0.55f), intensity: 0f, baseColor: new Color(0.3f, 0.3f, 0.29f));
         public static Material MicrowaveDisplay => Glowing("MicrowaveDisplay", Color.white, intensity: 1.6f, emissionMap: "generated/microwave_display.png", mapSizeMeters: MicrowaveDisplaySize);
 
@@ -175,19 +175,36 @@ namespace Omamagoto.Editor
             return material;
         }
 
-        /// <summary>画像の A で形を切り抜く素材（電子レンジの窓の、穴のあいた板）</summary>
-        static Material Cutout(string name, string baseMap, float sizeMeters, float smoothness, float metallic)
+        /// <summary>
+        /// 穴のあいた金属の板（電子レンジの窓）。画像の A = 0 の所が穴で、奥が透けて見える。
+        ///
+        /// 穴は画面の 1〜2 画素くらいしかないので、切り抜き（Cutout）にすると横じま（モアレ）が出る。
+        /// 半透明にして小さい画像（ミップマップ）を使うと、遠くでは穴がならされて、なめらかに暗く透ける
+        /// </summary>
+        static Material PerforatedMetal(string name, string baseMap, float sizeMeters, float smoothness, float metallic)
         {
             Material material = LoadOrCreate(name, "Universal Render Pipeline/Lit");
             material.SetColor("_BaseColor", Color.white);
-            material.SetTexture("_BaseMap", LoadTexture(baseMap));
+            material.SetTexture("_BaseMap", LoadTexture(baseMap, noStripes: true));
             material.SetTextureScale("_BaseMap", Vector2.one / sizeMeters);
             material.SetFloat("_Smoothness", smoothness);
             material.SetFloat("_Metallic", metallic);
-            material.SetFloat("_AlphaClip", 1);
-            material.SetFloat("_Cutoff", 0.5f);
-            SetKeyword(material, "_ALPHATEST_ON", true);
-            material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.AlphaTest;
+
+            // 半透明（A で混ぜる）。URP が保存のときに自動で整える値と同じにしておく
+            material.SetFloat("_Surface", 1);
+            material.SetFloat("_Blend", 0);
+            material.SetFloat("_SrcBlend", (float)BlendMode.One);
+            material.SetFloat("_DstBlend", (float)BlendMode.OneMinusSrcAlpha);
+            material.SetFloat("_SrcBlendAlpha", (float)BlendMode.One);
+            material.SetFloat("_DstBlendAlpha", (float)BlendMode.OneMinusSrcAlpha);
+            material.SetFloat("_ZWrite", 0);
+            material.SetFloat("_AlphaClip", 0);
+            material.SetFloat("_QueueOffset", -1); // 手前の黒いガラスより先に描く
+            material.SetOverrideTag("RenderType", "Transparent");
+            SetKeyword(material, "_SURFACE_TYPE_TRANSPARENT", true);
+            SetKeyword(material, "_ALPHAPREMULTIPLY_ON", true);
+            SetKeyword(material, "_ALPHATEST_ON", false);
+            material.renderQueue = (int)RenderQueue.Transparent - 1;
             EditorUtility.SetDirty(material);
             return material;
         }
@@ -228,13 +245,20 @@ namespace Omamagoto.Editor
         }
 
         /// <summary>テクスチャを読む。凹凸（法線）や mask は、色の画像とちがう読み込み方の設定にする</summary>
-        static Texture2D LoadTexture(string relativePath, bool isNormalMap = false, bool isLinear = false)
+        static Texture2D LoadTexture(string relativePath, bool isNormalMap = false, bool isLinear = false, bool noStripes = false)
         {
             string path = $"{TextureFolder}/{relativePath}";
             var importer = (TextureImporter)AssetImporter.GetAtPath(path);
             if (importer != null)
             {
                 bool changed = false;
+                if (noStripes && (importer.anisoLevel < 8 || importer.filterMode != FilterMode.Trilinear || importer.mipMapBias < 1))
+                {
+                    importer.anisoLevel = 8;                    // ななめから見ても、ぼやけすぎない
+                    importer.filterMode = FilterMode.Trilinear; // 小さい画像（ミップマップ）のあいだを、なめらかにつなぐ
+                    importer.mipMapBias = 1;                    // 1 段小さい画像を使う。画素より細かい模様が、しまに見えないように
+                    changed = true;
+                }
                 if (isNormalMap && importer.textureType != TextureImporterType.NormalMap)
                 {
                     importer.textureType = TextureImporterType.NormalMap;
