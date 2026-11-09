@@ -57,3 +57,7 @@ crashlytics-build.properties
 # OS が作るファイル
 .DS_Store
 Thumbs.db
+
+# MCP for Unity のスクリーンショット（確かめるためだけのもの）
+/[Aa]ssets/[Ss]creenshots/
+/[Aa]ssets/[Ss]creenshots.meta

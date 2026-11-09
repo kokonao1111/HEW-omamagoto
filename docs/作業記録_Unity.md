@@ -22,6 +22,31 @@ Unity を作る PC の Claude が、やったことを書く。新しいもの�
 
 ## 記録
 
+### 2026-11-09 イベントを受け取る・サーバーなしで試す（引き継ぎ 5.2・5.3）
+
+- やったこと：
+  - `unity/Assets/Scripts/` にスクリプトを作った（くわしくは `unity/README.md`）
+    - `Events/ScreenEvent.cs`（6.4 のイベントの形）、`Events/EventRouter.cs`（種類ごとに振り分け、同じ `seq` 以下は捨てる）
+    - `Network/ServerConnection.cs`：`System.Net.WebSockets.ClientWebSocket` でつなぐ（NativeWebSocket は使っていない。引き継ぎ 5.2 でどちらでもよいとなっていた）。つながったら `hello`、切れたら 1 秒〜最大 10 秒おきにつなぎ直す、つなぎ直したら `seq` を忘れる、R キーでサーバーに `{"event":"reset"}`
+    - `Testing/`：キー（three.js 版と同じ K・C・A・S・P・0〜3・Enter・R・D、F1 で表示切りかえ）、デモ（three.js 版と同じ台本。サーバーがないと 3 秒後に自動で始まる）、左上の状態表示
+  - シーン `SampleScene` に `ServerEvents`（上のコンポーネント全部）を置いた
+  - スクリプトを asmdef（`Omamagoto`）にまとめた。テスト（`Assets/Tests/EditMode` 14 個、`Assets/Tests/PlayMode` 17 個）を作った
+  - パッケージ：Newtonsoft Json（3.2.2）を足した。Input System のテスト道具を使うため `manifest.json` に `testables` を足した
+  - Player Settings の **Run In Background をオン**にした（展示中にほかのウィンドウに触れても画面が止まらないように）
+  - `.gitignore` に `unity/.vscode/` と、MCP のスクリーンショット（`Assets/Screenshots/`）を足した
+- 決まったこと：テストは Unity の Test Runner で、誰でも流せるようにする。スクリプトを変えたら EditMode・PlayMode の両方を流す
+- 確かめたこと：
+  - テスト 31 個が全部成功（EditMode 14・PlayMode 17）。わざと「つなぎ直したら seq を忘れる」を壊すと、2 つのテストが失敗することも確かめた（テストがまちがいを見つけられる）
+  - Python のにせサーバー（一時フォルダー。リポジトリには入れていない）とつないで：`hello` が届く、`fire`・`cut`・`add`・`season`・`reset` を受け取る、重複と壊れた JSON は捨てる、リセットを送るとサーバーの `reset` が返る、切れたら自動でつなぎ直して `seq` 1 から受け付ける
+  - サーバーなしで再生すると、デモが自動で流れる（ユーザーが画面で確かめた）。左上の日本語もきちんと出る
+- まだ確かめていないこと・困っていること：
+  - 本物の Rust サーバーとはまだつないでいない（この PC に Rust がない。`cargo run -- --no-ble` で試せる）
+  - ビルドした実行ファイル（IL2CPP）ではまだ試していない
+  - Unity の中の .NET では `HttpListener` の WebSocket が使えない（NotImplemented）。テストのにせサーバーは TCP で自分でハンドシェイクしている
+  - MCP for Unity からテストを流すと、Run In Background と Enter Play Mode Options が変わることがあった。流したあとは `git diff unity/ProjectSettings` で確かめる
+- 次にやること：5.4 キッチンの画面（まな板・コンロ・皿・電子レンジを現実と同じ配置で置き、包丁・にんじんをイベントで動かす）。切る演出の見せ方をユーザーと決める
+- 要件定義書について（ユーザーに案を出した）：10 章の画面のライブラリ「NativeWebSocket」を「ClientWebSocket（.NET 標準）、Newtonsoft Json」にする
+
 ### 2026-11-09 Unity のプロジェクトを作った（引き継ぎ 5.1）
 
 - やったこと：

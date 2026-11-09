@@ -29,8 +29,63 @@
 
 | パッケージ | 何のため |
 | --- | --- |
+| Newtonsoft Json（`com.unity.nuget.newtonsoft-json`） | サーバーの JSON を読む。「届かなかった項目」と「0」を見分けられる |
 | MCP for Unity（`com.coplaydev.unity-mcp` v10.3.0） | Claude Code が Unity のエディターを操作するため。エディターの中だけで動き、ビルドした実行ファイルには入らない。使わない人は気にしなくてよい |
 
 ## 動かし方
 
-（これから書く：サーバーとのつなぎ方、キーで試す方法、2 画面の出し方）
+`Assets/Scenes/SampleScene` を開いて再生する。シーンの `ServerEvents` が、サーバーとのやり取りをまとめて受け持つ。
+
+### サーバーにつなぐ
+
+- `ServerEvents` の **Server Connection** の `Server Url`（はじめは `ws://localhost:9000/screen`）につなぐ
+- サーバーが別の PC で動いているときは、その PC の IP にする（例：`ws://192.168.x.x:9000/screen`）
+- つながると `{"device":"screen","event":"hello"}` を送る。切れたら自動でつなぎ直す（1 秒〜最大 10 秒おき）
+- 画面の左上に、つながりの状態が出る（サーバー接続中 / サーバーを待っています / 再接続中… / デモ再生中）
+
+### サーバーなしで試す（キーとデモ）
+
+サーバーにつながっていないと、3 秒後にデモ（three.js 版と同じ台本）が自動で流れる。キーを押すとデモは止まる。
+
+| キー | イベント |
+| --- | --- |
+| K | 包丁を振り下ろす（swing） |
+| C | 切る（cut。ピースが 1 個増える） |
+| A | まな板のピースをフライパンに入れる（add） |
+| S / P | 塩 / こしょうを振る（season。0.5 g ずつ） |
+| 0〜3 | 火の強さ（fire） |
+| Enter | 提供（serve。テスト用に 80 点） |
+| R | リセット（サーバーにつながっていれば、サーバーに頼む） |
+| D | デモを始める / 止める |
+| F1 | 左上の「届いたイベント」の表示を出す / 消す |
+
+届いたイベントを Console にも出したいときは、`ServerEvents` の **Event Router** の `Log To Console` をオンにする（今はオン。包丁の位置が多くて見にくければオフにする）。
+
+### 演出を足すとき
+
+演出のスクリプトは `EventRouter` の `OnCut` などに登録して待つ。サーバーからでも、キーやデモからでも同じように届く。
+
+```csharp
+router.OnCut += e => Debug.Log($"ピースが {e.Count} 個になった");
+```
+
+## スクリプトの場所
+
+| ファイル | 役目 |
+| --- | --- |
+| `Assets/Scripts/Events/ScreenEvent.cs` | 1 件のイベントの形（要件定義書 6.4） |
+| `Assets/Scripts/Events/EventRouter.cs` | 種類ごとに振り分ける。同じ `seq` 以下は捨てる |
+| `Assets/Scripts/Network/ServerConnection.cs` | WebSocket でサーバーにつなぐ・つなぎ直す・リセットを頼む |
+| `Assets/Scripts/Testing/LocalEventSender.cs` | サーバーと同じ形のイベントを作る（キーとデモで使う） |
+| `Assets/Scripts/Testing/KeyboardEventSender.cs` | キーでイベントを出す |
+| `Assets/Scripts/Testing/DemoPlayer.cs` | サーバーがないときのデモ |
+| `Assets/Scripts/Testing/StatusOverlay.cs` | 左上の表示 |
+
+## テスト
+
+Unity のメニュー「Window → General → Test Runner」で流せる。
+
+- **EditMode**（14 個）：JSON の読み方、振り分け、`seq` の重複、作るイベントの形
+- **PlayMode**（17 個）：キー（Input System でキーを押したことにする）、デモ（20 倍速）、サーバーとの接続（テストの中ににせサーバーを立てる。`Assets/Tests/PlayMode/FakeScreenServer.cs`）
+
+スクリプトを変えたら、両方流して全部成功するか確かめる。
