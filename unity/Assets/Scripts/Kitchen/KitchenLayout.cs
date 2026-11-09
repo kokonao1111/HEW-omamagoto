@@ -30,10 +30,9 @@ namespace Omamagoto.Kitchen
         public const float LeftBurnerX = 100, RightBurnerX = 300; // コンロ板の左端 → バーナーの中心
         public const float BurnerRadius = 60;
         public const float PanRadius = 90;   // フライパン（おもちゃ）の半径
-        // 現実のおもちゃは、コンロ板（15 mm）の上に、フライパンを 25 mm 浮かせてのせる（pan_z）。
-        // 画面のガスコンロでは、フライパンを五徳の上にのせて、底の高さを現実と同じ 40 mm にする
-        public const float RealStovePlateThickness = 15;
-        public const float RealPanHeight = 25;
+        // 現実のおもちゃは、コンロ板（15 mm）の上に、フライパンを 25 mm 浮かせてのせる（pan_z。底は 40 mm）。
+        // 画面では、台に置く箱型のガステーブル（つまみ式）にしたので、フライパンはそれより高い（StoveTopZ・TrivetTopZ）。
+        // 左右・奥行きの位置は、現実と同じ
 
         // ---- 電子レンジ（おもちゃを置く） ----
         public const float MicrowaveX = 30, MicrowaveY = 320, MicrowaveWidth = 280, MicrowaveDepth = 200, MicrowaveHeight = 230;
@@ -69,13 +68,16 @@ namespace Omamagoto.Kitchen
         /// <summary>皿の真ん中（天板の上）</summary>
         public static Vector3 PlateCenter => ToWorld(PlateX + PlateWidth / 2, PlateY + PlateDepth / 2, 0);
 
-        /// <summary>画面のガスコンロ（ガラスの天板）の上面の高さ（mm）</summary>
-        public const float StoveTopZ = 6;
+        /// <summary>
+        /// 画面のガステーブルの天板の上面の高さ（mm）。
+        /// 本物（幅 56 cm・天板まで約 13 cm）を、コンロの幅 400 mm に合わせて小さくした高さ（2026-11-10 に決めた）
+        /// </summary>
+        public const float StoveTopZ = 90;
 
-        /// <summary>五徳の上面＝フライパンの底の高さ（mm）。現実のおもちゃと同じ</summary>
-        public const float TrivetTopZ = RealStovePlateThickness + RealPanHeight;
+        /// <summary>五徳の上面＝フライパンの底の高さ（mm）。バーナーと炎の上に、すき間をあける</summary>
+        public const float TrivetTopZ = StoveTopZ + 34;
 
-        /// <summary>バーナーの真ん中（ガラスの天板の上面）。right が true なら右</summary>
+        /// <summary>バーナーの真ん中（天板の上面）。right が true なら右</summary>
         public static Vector3 BurnerCenter(bool right)
         {
             float x = StoveX + (right ? RightBurnerX : LeftBurnerX);

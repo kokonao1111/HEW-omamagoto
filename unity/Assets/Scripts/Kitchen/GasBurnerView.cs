@@ -6,18 +6,18 @@ namespace Omamagoto.Kitchen
     /// <summary>
     /// ガスコンロの右のバーナー（フライパンをのせる方）。
     ///
-    /// - fire：火の強さ（0=切、1=弱、2=中、3=強）に合わせて、炎口から青い炎を出す。手前のランプがオレンジに光る
+    /// - fire：火の強さ（0=切、1=弱、2=中、3=強）に合わせて、炎口から青い炎を出す。前のつまみが、その強さの所まで回る
     /// - reset：火を消す
     ///
     /// 炎は、炎口ごとに「十字に組んだ 2 枚の板」に炎の画像を貼ったもの。少しずつゆらす。
-    /// このコンポーネントは、バーナーの真ん中（ガラスの天板の上面）に置く。
+    /// このコンポーネントは、バーナーの真ん中（天板の上面）に置く。
     /// </summary>
     public class GasBurnerView : MonoBehaviour
     {
         [SerializeField] EventRouter router;
         [SerializeField] Material flameMaterial;
-        [Tooltip("手前の、火がついているかのランプ")]
-        [SerializeField] Renderer lamp;
+        [Tooltip("前のつまみ（回す所。前から見て Z のまわりに回す）")]
+        [SerializeField] Transform knob;
 
         [Header("炎")]
         [Tooltip("火の強さ 0〜3 ごとの、炎の長さ（mm）")]
@@ -32,13 +32,14 @@ namespace Omamagoto.Kitchen
         [Header("光")]
         [Tooltip("強火のときの、炎の光の強さ")]
         [SerializeField] float lightIntensity = 0.004f;
-        [SerializeField] Color lampColor = new Color(1f, 0.42f, 0.08f);
-        [SerializeField] Color lampOffColor = new Color(0.03f, 0.025f, 0.02f);
-        [SerializeField] float lampIntensity = 3f;
+
+        [Header("つまみ")]
+        [Tooltip("つまみが回りきるまでの時間（秒）")]
+        [SerializeField] float knobTurnSeconds = 0.25f;
 
         Transform[] flames;
         Light flameLight;
-        MaterialPropertyBlock lampBlock;
+        float knobAngle;
 
         /// <summary>今の火の強さ（0〜3。イベントで届いた値）</summary>
         public int Level { get; private set; }
@@ -53,7 +54,6 @@ namespace Omamagoto.Kitchen
         {
             CreateFlames();
             CreateLight();
-            lampBlock = new MaterialPropertyBlock();
             Apply();
         }
 
@@ -85,10 +85,16 @@ namespace Omamagoto.Kitchen
             float k = 1 - Mathf.Exp(-Time.deltaTime / changeSeconds);
             Flame = Mathf.Lerp(Flame, Level, k);
             if (Level == 0 && Flame < 0.05f) Flame = 0;
+
+            float turn = 1 - Mathf.Exp(-Time.deltaTime / (knobTurnSeconds / 3));
+            knobAngle = Mathf.LerpAngle(knobAngle, GasBurnerShape.KnobDegrees[Level], turn);
             Apply();
         }
 
-        /// <summary>今の炎の大きさを、炎・光・ランプに映す</summary>
+        /// <summary>つまみの今の角度（度。前から見て左回り）</summary>
+        public float KnobAngle => knobAngle;
+
+        /// <summary>今の炎の大きさを、炎・光・つまみに映す</summary>
         void Apply()
         {
             float length = FlameLengthMm(Flame) / 1000f;
@@ -104,12 +110,7 @@ namespace Omamagoto.Kitchen
             flameLight.intensity = lightIntensity * Flame / 3 * (0.9f + 0.1f * Mathf.PerlinNoise(Time.time * 12f, 0));
             flameLight.enabled = Flame > 0.01f;
 
-            if (lamp != null)
-            {
-                lamp.GetPropertyBlock(lampBlock);
-                lampBlock.SetColor("_BaseColor", Level > 0 ? lampColor * lampIntensity : lampOffColor); // ランプは Unlit（光の計算なし）
-                lamp.SetPropertyBlock(lampBlock);
-            }
+            if (knob != null) knob.localRotation = Quaternion.Euler(0, 0, knobAngle);
         }
 
         /// <summary>火の強さ（0〜3 の小数）のときの炎の長さ（mm）。あいだの値は、となりの段からなめらかに決める</summary>
@@ -146,7 +147,7 @@ namespace Omamagoto.Kitchen
             }
         }
 
-        /// <summary>炎の光：フライパンの底や五徳、ガラスの天板が、青く照らされる</summary>
+        /// <summary>炎の光：フライパンの底や五徳、天板が、青く照らされる</summary>
         void CreateLight()
         {
             var lightObject = new GameObject("FlameLight");

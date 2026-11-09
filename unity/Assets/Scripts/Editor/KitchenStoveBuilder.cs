@@ -7,66 +7,194 @@ using static Omamagoto.Editor.KitchenBuildTools;
 namespace Omamagoto.Editor
 {
     /// <summary>
-    /// ガスコンロ（2 口。2026-11-09 に IH から変えた）。
-    /// ガラスの天板にステンレスの縁。バーナーごとに、受け皿・バーナー（炎口つき）・温度センサー・点火プラグ・鋳物の五徳。
-    /// フライパンは五徳の上にのる（底の高さは現実のおもちゃと同じ 40 mm。KitchenLayout.TrivetTopZ）
+    /// ガスコンロ：台に置く、昔ながらの箱型のガステーブル（2 口・つまみ式。2026-11-10 に決めた）。
+    ///
+    /// - 箱：アイボリーの塗装の鉄板。下にゴムの足
+    /// - 天板：シルバーのホーロー。ふちが少し盛り上がる
+    /// - 前：ステンレスの板に、左右のつまみ（回すと火がつく）と、真ん中の魚焼きグリルの扉
+    /// - バーナーごとに：受け皿・バーナー（炎口つき）・点火プラグ・鋳物の五徳
+    ///
+    /// フライパンは五徳の上にのる（底の高さは KitchenLayout.TrivetTopZ）
     /// </summary>
     public static class KitchenStoveBuilder
     {
-        const float Top = KitchenLayout.StoveTopZ; // ガラスの天板の上面（mm）
+        const float Top = KitchenLayout.StoveTopZ;         // 天板の上面（mm）
+        const float FootHeight = 8;                        // 箱の下の、ゴムの足の高さ
+        const float PanelFrontY = KitchenLayout.StoveY - 1; // 前の板の表面（現実の y。mm）
+        const float KnobZ = 47;                            // つまみの真ん中の高さ
+        const float KnobFromSide = 42;                     // 箱の横から、つまみの真ん中まで
         static readonly Vector3 Up = new Vector3(0, 0, 1); // 現実の座標の「上」（z）
 
-        /// <summary>作ったもののうち、再生中に動かすもの（炎を出す GasBurnerView を付ける所）</summary>
+        /// <summary>作ったもののうち、再生中に動かすもの（炎を出す GasBurnerView を付ける所と、回すつまみ）</summary>
         public struct Result
         {
             public Transform RightBurner;
-            public Renderer RightLamp;
+            public Transform RightKnob;
         }
 
         public static Result Build(Transform parent)
         {
             var stove = Group(parent, "GasStove");
-            BuildTopPlate(stove);
+            BuildBody(stove);
+            BuildGrill(stove);
 
             var result = new Result();
             foreach (bool right in new[] { false, true })
             {
                 Transform burner = BuildBurner(stove, right);
-                Renderer lamp = BuildLamp(stove, right);
+                Transform knob = BuildKnob(stove, right);
                 if (right)
                 {
                     result.RightBurner = burner;
-                    result.RightLamp = lamp;
+                    result.RightKnob = knob;
                 }
             }
             return result;
         }
 
-        /// <summary>ガラスの天板と、まわりのステンレスの縁</summary>
-        static void BuildTopPlate(Transform stove)
+        // ---------------- 箱と天板 ----------------
+
+        /// <summary>箱・ゴムの足・天板（ふちつき）・前の板</summary>
+        static void BuildBody(Transform stove)
         {
             float x = KitchenLayout.StoveX, y = KitchenLayout.StoveY;
             float w = KitchenLayout.StoveWidth, d = KitchenLayout.StoveDepth;
-            RoundedBox(stove, "GlassTop", new Vector3(x + w / 2, y + d / 2, Top / 2), new Vector3(w, d, Top), 3,
-                KitchenMaterials.GlassTop, collider: true);
+            float cx = x + w / 2, cy = y + d / 2;
 
-            // 縁：幅 5 mm・高さ 8 mm の角の丸い棒を、天板のふちに沿って 1 周させる（天板より 3 mm 高い）
-            Vector3[] edge = RoundedLoopMm(x + w / 2, y + d / 2, Top - 1, w, d, 4);
-            Sweep(stove, "GlassTopFrame", SweepMesh.RoundedRect(5, 8, 1.5f), edge, Up, KitchenMaterials.Stainless, closedPath: true);
+            foreach (var (footX, footY) in new[] { (x + 30, y + 30), (x + w - 30, y + 30), (x + 30, y + d - 30), (x + w - 30, y + d - 30) })
+            {
+                Lathe(stove, "Foot", new[] { Part(Mm(10, 0), Mm(10, 6), Mm(8.5f, FootHeight)) },
+                    new Vector3(footX, footY, 0), KitchenMaterials.Rubber, meshName: "StoveFoot");
+            }
+
+            // 箱（前の板の厚さ 3 mm の分だけ、うしろから始める）
+            float boxBottom = FootHeight, boxTop = Top - 6;
+            RoundedBox(stove, "Body", new Vector3(cx, cy + 1, (boxBottom + boxTop) / 2), new Vector3(w - 4, d - 2, boxTop - boxBottom), 5,
+                KitchenMaterials.StoveBody, collider: true);
+
+            // 天板：箱より少し大きいホーローの板。ふちを 1 周、少し盛り上げる
+            RoundedBox(stove, "TopPlate", new Vector3(cx, cy, Top - 3), new Vector3(w + 4, d + 4, 6), 3,
+                KitchenMaterials.StoveTopEnamel, collider: true);
+            Vector3[] rim = RoundedLoopMm(cx, cy, Top - 0.5f, w + 1, d + 1, 5);
+            Sweep(stove, "TopPlateRim", SweepMesh.RoundedRect(5, 4, 1.5f), rim, Up, KitchenMaterials.StoveTopEnamel, closedPath: true);
+
+            // 前の板：ステンレス。つまみとグリルの扉が付く
+            RoundedBox(stove, "FrontPanel", new Vector3(cx, PanelFrontY + 1.5f, 47), new Vector3(w - 12, 3, 66), 1.5f,
+                KitchenMaterials.Stainless);
         }
 
-        /// <summary>手前の、火がついているかを知らせるランプ（オレンジに光る）と、まわりの印刷の輪</summary>
-        static Renderer BuildLamp(Transform stove, bool right)
+        /// <summary>真ん中の魚焼きグリル：黒い扉・のぞき窓・クロムの取っ手と、天板のうしろの排気口</summary>
+        static void BuildGrill(Transform stove)
         {
-            Vector3 burner = BurnerMm(right);
-            var position = new Vector3(burner.x, KitchenLayout.StoveY + 26, Top);
-            Lathe(stove, right ? "LampRingRight" : "LampRingLeft", new[] { Part(Mm(7.5f, 0.15f), Mm(6.3f, 0.15f)) }, position,
-                KitchenMaterials.CooktopPrint, meshName: "StoveLampRing");
-            var lamp = Lathe(stove, right ? "LampRight" : "LampLeft",
-                new[] { Part(Mm(2.6f, 0), Mm(2.6f, 0.3f), Mm(2f, 0.5f), Mm(0, 0.55f)) }, position,
-                KitchenMaterials.StoveLed, meshName: "StoveLamp");
-            return lamp.GetComponent<Renderer>();
+            float cx = KitchenLayout.StoveX + KitchenLayout.StoveWidth / 2;
+
+            RoundedBox(stove, "GrillDoor", new Vector3(cx, PanelFrontY - 1.5f, 45), new Vector3(220, 3, 54), 2,
+                KitchenMaterials.GrillDoor);
+            RoundedBox(stove, "GrillWindow", new Vector3(cx, PanelFrontY - 3.1f, 38), new Vector3(130, 0.4f, 20), 2,
+                KitchenMaterials.GlassTop);
+
+            // 取っ手：扉から出て、横に走って、扉へ戻る棒
+            float front = PanelFrontY - 3, handleZ = 62;
+            Vector3[] handle = SweepMesh.Polyline(new[]
+            {
+                new Vector3(cx - 80, front, handleZ),
+                new Vector3(cx - 78, front - 12, handleZ),
+                new Vector3(cx + 78, front - 12, handleZ),
+                new Vector3(cx + 80, front, handleZ),
+            }, 5f, 8);
+            Sweep(stove, "GrillHandle", SweepMesh.RoundedRect(9, 6, 2.5f, 5), handle, Up, KitchenMaterials.Chrome);
+
+            // 排気口：天板のうしろの真ん中。ステンレスのふたに、細長いすき間
+            float ventY = KitchenLayout.StoveY + KitchenLayout.StoveDepth - 28;
+            RoundedBox(stove, "GrillVent", new Vector3(cx, ventY, Top + 2), new Vector3(110, 24, 4), 2, KitchenMaterials.Stainless);
+            Mesh slot = RoundedBoxMesh.Build(new Vector3(0.003f, 0.0006f, 0.016f), 0.0008f, 2);
+            var slots = new List<(Mesh, Matrix4x4)>();
+            for (int i = -4; i <= 4; i++) slots.Add((slot, At(new Vector3(i * 11.5f, 0, 0), Quaternion.identity)));
+            Combined(stove, "GrillVentSlots", new Vector3(cx, ventY, Top + 4.05f), KitchenMaterials.VentHole, slots);
         }
+
+        // ---------------- つまみ ----------------
+
+        /// <summary>
+        /// 前のつまみ（黒い樹脂・クロムの輪・縦の持ち手）と、まわりの印刷（消・強・中・弱の印）。
+        /// 返すのは、つまみを回すための入れ物（前の板の表面・つまみの真ん中。Z のまわりに回すと、前から見て左回り）
+        /// </summary>
+        static Transform BuildKnob(Transform stove, bool right)
+        {
+            float x = right ? KitchenLayout.StoveX + KitchenLayout.StoveWidth - KnobFromSide : KitchenLayout.StoveX + KnobFromSide;
+            string side = right ? "Right" : "Left";
+
+            BuildKnobPrint(stove, side, new Vector3(x, PanelFrontY, KnobZ));
+
+            var knob = Group(stove, "Knob" + side);
+            knob.position = KitchenLayout.ToWorld(x, PanelFrontY, KnobZ);
+
+            // ろくろの形は Y の向きに作るので、前（-Z）へ向ける
+            Quaternion toFront = Quaternion.Euler(-90, 0, 0);
+            Mesh bezel = LatheMesh.Build(new[]
+            {
+                Part(Mm(22, 0), Mm(22, 1.8f), Mm(21, 3)),
+                Part(Mm(21, 3), Mm(19.2f, 3.2f)),
+            }, 64);
+            AddLocal(knob, "Bezel", SaveMesh(bezel, "StoveKnobBezel"), KitchenMaterials.Chrome, Vector3.zero, toFront);
+
+            Mesh body = LatheMesh.Build(new[]
+            {
+                Part(Mm(19.2f, 2.5f), Mm(19.4f, 9), Mm(18.6f, 13.5f), Mm(16.5f, 15.5f), Mm(9, 16.4f), Mm(0, 16.6f)),
+            }, 64);
+            AddLocal(knob, "Body", SaveMesh(body, "StoveKnobBody"), KitchenMaterials.KnobBlack, Vector3.zero, toFront);
+
+            // 横のみぞ（指がすべらないように、細い出っぱりを 24 本）
+            Mesh rib = RoundedBoxMesh.Build(new Vector3(0.0016f, 0.009f, 0.0012f), 0.0005f, 2);
+            var ribs = new List<CombineInstance>();
+            for (int i = 0; i < 24; i++)
+            {
+                float angle = 360f * i / 24;
+                Quaternion around = Quaternion.Euler(0, angle, 0);
+                ribs.Add(new CombineInstance { mesh = rib, transform = Matrix4x4.TRS(around * new Vector3(0, 0.0085f, -0.0194f), around, Vector3.one) });
+            }
+            var ribMesh = new Mesh();
+            ribMesh.CombineMeshes(ribs.ToArray(), mergeSubMeshes: true, useMatrices: true);
+            AddLocal(knob, "Ribs", SaveMesh(ribMesh, "StoveKnobRibs"), KitchenMaterials.KnobBlack, Vector3.zero, toFront);
+
+            // 持ち手：縦の棒。上のはしに白い印（火を消した所で真上を向く）
+            Mesh grip = RoundedBoxMesh.Build(new Vector3(0.010f, 0.034f, 0.014f), 0.0035f, 4);
+            AddLocal(knob, "Grip", SaveMesh(grip, "StoveKnobGrip"), KitchenMaterials.KnobBlack, new Vector3(0, 0, -0.022f), Quaternion.identity);
+            Mesh mark = RoundedBoxMesh.Build(new Vector3(0.0022f, 0.009f, 0.0006f), 0.0003f, 2);
+            AddLocal(knob, "GripMark", SaveMesh(mark, "StoveKnobMark"), KitchenMaterials.KnobMark, new Vector3(0, 0.0105f, -0.0291f), Quaternion.identity);
+            return knob;
+        }
+
+        /// <summary>つまみのまわりの黒い印：真上が「消」（白抜きの輪）、左へ「強」「中」「弱」（だんだん小さい点）</summary>
+        static void BuildKnobPrint(Transform stove, string side, Vector3 centerMm)
+        {
+            Mesh offRing = LatheMesh.Build(new[] { Part(Mm(2.6f, 0), Mm(2.6f, 0.3f), Mm(1.6f, 0.3f), Mm(1.6f, 0)) }, 24);
+            float[] dotRadius = { 0, 1.6f, 2.3f, 3f }; // 弱・中・強
+            var pieces = new List<(Mesh, Matrix4x4)>();
+            for (int level = 0; level < GasBurnerShape.KnobDegrees.Length; level++)
+            {
+                float rad = GasBurnerShape.KnobDegrees[level] * Mathf.Deg2Rad;
+                var offset = new Vector3(-Mathf.Sin(rad), 0, Mathf.Cos(rad)) * 30f; // 前から見て、真上から左回り
+                Mesh mesh = level == 0
+                    ? offRing
+                    : LatheMesh.Build(new[] { Part(Mm(dotRadius[level], 0), Mm(dotRadius[level], 0.3f), Mm(0, 0.3f)) }, 24);
+                pieces.Add((mesh, At(offset, Quaternion.Euler(-90, 0, 0))));
+            }
+            Combined(stove, "KnobPrint" + side, centerMm, KitchenMaterials.StovePrint, pieces);
+        }
+
+        /// <summary>入れ物の中に、メッシュを置く（位置と向きは入れ物から見た Unity の値）</summary>
+        static void AddLocal(Transform parent, string objectName, Mesh mesh, Material material, Vector3 localPosition, Quaternion localRotation)
+        {
+            var gameObject = new GameObject(objectName);
+            gameObject.transform.SetParent(parent, false);
+            gameObject.transform.localPosition = localPosition;
+            gameObject.transform.localRotation = localRotation;
+            gameObject.AddComponent<MeshFilter>().sharedMesh = mesh;
+            gameObject.AddComponent<MeshRenderer>().sharedMaterial = material;
+        }
+
+        // ---------------- バーナー ----------------
 
         /// <summary>バーナー 1 口ぶん。まとめた入れ物（バーナーの真ん中・天板の上面）を返す</summary>
         static Transform BuildBurner(Transform stove, bool right)
@@ -84,19 +212,17 @@ namespace Omamagoto.Editor
                 Part(Mm(46f, 0.3f), Mm(0, 0.3f)),
             }, onTop, KitchenMaterials.Stainless, meshName: "StoveSpillBowl");
 
-            // バーナー：アルミの胴、炎口の並ぶ帯、黒いホーローのキャップ（真ん中にセンサーの穴）
+            // バーナー：アルミの胴、炎口の並ぶ帯、黒いホーローのキャップ（昔のコンロなので、真ん中の温度センサーはない）
             const int metal = 0, enamel = 1;
             Lathe(burner, "Burner", new[]
             {
                 Part(metal, Mm(31f, 0.3f), Mm(31.6f, 6f), Mm(31.4f, 11.5f)),
                 Part(metal, Mm(31.4f, 11.5f), Mm(36.5f, 12.2f), Mm(37.8f, 13.5f)),
                 Part(metal, Mm(37.8f, 13.5f), Mm(37.8f, 17.5f)),
-                Part(enamel, Mm(37.8f, 17.5f), Mm(36.8f, 19f), Mm(30f, 20.6f), Mm(18f, 21.6f), Mm(11.5f, 21.8f)),
-                Part(enamel, Mm(11.5f, 21.8f), Mm(10.8f, 21f)),
+                Part(enamel, Mm(37.8f, 17.5f), Mm(36.8f, 19f), Mm(30f, 20.6f), Mm(18f, 21.6f), Mm(0, 22f)),
             }, onTop, new[] { KitchenMaterials.BurnerAluminum, KitchenMaterials.BurnerEnamel }, meshName: "StoveBurner");
 
             BuildPorts(burner, onTop);
-            BuildSensor(burner, c);
             BuildIgniter(burner, c);
             BuildTrivet(burner, c);
             return burner;
@@ -116,34 +242,6 @@ namespace Omamagoto.Editor
                 pieces.Add((port, At(offset, Quaternion.Euler(0, -angle, 0)))); // 箱の X を外へ向ける
             }
             Combined(burner, "BurnerPorts", onTopMm, KitchenMaterials.BurnerPort, pieces);
-        }
-
-        /// <summary>
-        /// 真ん中の温度センサー：ばねで持ち上がって、フライパンの底に当たる（頭の上面が五徳の上面と同じ高さ）
-        /// </summary>
-        static void BuildSensor(Transform burner, Vector3 c)
-        {
-            float head = KitchenLayout.TrivetTopZ - Top; // 天板から、センサーの頭の上面まで
-            Lathe(burner, "Sensor", new[]
-            {
-                Part(Mm(4f, 15f), Mm(4f, head - 4.5f)),                                   // 軸
-                Part(Mm(4f, head - 4.5f), Mm(9f, head - 4f)),                            // 頭の下
-                Part(Mm(9f, head - 4f), Mm(10f, head - 3f), Mm(10f, head - 1f), Mm(9.2f, head - 0.1f)),
-                Part(Mm(9.2f, head - 0.1f), Mm(5f, head), Mm(0, head)),                  // 頭の上
-            }, new Vector3(c.x, c.y, Top), KitchenMaterials.Stainless, meshName: "StoveSensor");
-
-            // ばね：細い線を、らせんに巻く
-            var coil = new List<Vector3>();
-            const float coilRadius = 6.5f, from = 20f, turns = 4.5f, stepsPerTurn = 16;
-            float to = head - 5f;
-            for (int i = 0; i <= turns * stepsPerTurn; i++)
-            {
-                float t = i / (turns * stepsPerTurn);
-                float angle = t * turns * 2 * Mathf.PI;
-                coil.Add(new Vector3(c.x + Mathf.Cos(angle) * coilRadius, c.y + Mathf.Sin(angle) * coilRadius, Top + Mathf.Lerp(from, to, t)));
-            }
-            Sweep(burner, "SensorSpring", SweepMesh.Circle(0.7f, 8), coil.ToArray(), Up, KitchenMaterials.Stainless,
-                meshName: "StoveSensorSpring");
         }
 
         /// <summary>点火プラグ（白い焼き物に、バーナーへ曲がった電極）と、立ち消え安全装置の細い棒</summary>

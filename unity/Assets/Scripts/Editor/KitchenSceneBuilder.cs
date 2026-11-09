@@ -60,14 +60,14 @@ namespace Omamagoto.Editor
             Debug.Log("[キッチン] 作り直しました。シーンを保存してください");
         }
 
-        /// <summary>右のバーナーの炎（再生したときに GasBurnerView が炎を作る）</summary>
+        /// <summary>右のバーナーの炎（再生したときに GasBurnerView が炎を作る）と、右のつまみ</summary>
         static GasBurnerView AddBurner(KitchenStoveBuilder.Result stove, EventRouter router)
         {
             var view = stove.RightBurner.gameObject.AddComponent<GasBurnerView>();
             SetFields(view,
                 ("router", router),
                 ("flameMaterial", KitchenMaterials.GasFlame),
-                ("lamp", stove.RightLamp));
+                ("knob", stove.RightKnob));
             return view;
         }
 

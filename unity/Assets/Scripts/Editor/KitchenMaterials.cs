@@ -9,8 +9,8 @@ namespace Omamagoto.Editor
     /// キッチンのマテリアル（色・つや・テクスチャ）を作る。Assets/Art/Materials/ に保存する。
     /// もうあれば中身を上書きするので、色やつやを変えたいときは、ここの数字を直して「キッチンを作り直す」。
     ///
-    /// 目指す雰囲気は「明るい家のキッチン」（2026-11-09 に決めた）：白い人工大理石の天板、白いタイル、
-    /// ステンレス、ガラスの天板のガスコンロ（2026-11-09 に IH から変えた）。
+    /// 目指す雰囲気は「明るい家のキッチン」（2026-11-09 に決めた）：白い人工大理石の天板、白い角タイル（昔ながらの 10 cm 角）、
+    /// ステンレス、昔ながらのつまみ式のガステーブル（2026-11-10 に決めた）。
     ///
     /// テクスチャの Tiling は「1 ÷ テクスチャの実際の大きさ（m）」。形の UV をメートルで作っているので、現実と同じ大きさになる。
     /// </summary>
@@ -22,7 +22,8 @@ namespace Omamagoto.Editor
         // ---- 部屋・台 ----
         public static Material CounterQuartz => Textured("CounterQuartz", "generated/white_quartz_diff.png", null, "generated/white_quartz_mask.png", sizeMeters: 0.6f, smoothness: 1f);
         public static Material CabinetWhite => Plain("CabinetWhite", new Color(0.9f, 0.9f, 0.88f), smoothness: 0.5f);
-        public static Material WallTiles => Textured("WallTiles", "generated/white_subway_tiles_diff.png", "generated/white_subway_tiles_nor_gl.png", "generated/white_subway_tiles_mask.png", sizeMeters: 0.6f, smoothness: 1f);
+        // 壁：昔ながらの台所の、10 cm 角の白いタイル（少し使い込んだ感じ。ambientCG の Tiles133B。画像 1 枚に 12 × 12 枚）
+        public static Material WallTiles => Textured("WallTiles", "tiles133b/tiles133b_color_2k.jpg", "tiles133b/tiles133b_nor_gl_2k.jpg", "tiles133b/tiles133b_mask_2k.png", sizeMeters: 1.2f, smoothness: 1f, color: new Color(1f, 0.96f, 0.92f));
         public static Material WallPaint => Plain("WallPaint", new Color(0.9f, 0.89f, 0.86f), smoothness: 0.15f);
 
         // ---- 道具 ----
@@ -36,15 +37,20 @@ namespace Omamagoto.Editor
         public static Material Salt => Plain("Salt", new Color(0.96f, 0.96f, 0.94f), smoothness: 0.35f);
         public static Material Pepper => Plain("Pepper", new Color(0.2f, 0.17f, 0.15f), smoothness: 0.3f);
 
-        // ---- ガスコンロ ----
-        public static Material GlassTop => ClearCoat("GasGlassTop", new Color(0.02f, 0.02f, 0.024f), smoothness: 0.9f);
-        public static Material CooktopPrint => Plain("CooktopPrint", new Color(0.32f, 0.32f, 0.32f), smoothness: 0.9f);
+        // ---- ガスコンロ（台に置く、昔ながらのつまみ式のガステーブル） ----
+        public static Material StoveBody => Plain("StoveBody", new Color(0.84f, 0.81f, 0.74f), smoothness: 0.55f);           // アイボリーの塗装
+        public static Material StoveTopEnamel => Plain("StoveTopEnamel", new Color(0.6f, 0.6f, 0.6f), smoothness: 0.72f, metallic: 0.45f); // シルバーのホーロー
+        public static Material StovePrint => Plain("StovePrint", new Color(0.03f, 0.03f, 0.03f), smoothness: 0.4f);
+        public static Material GrillDoor => ClearCoat("GrillDoor", new Color(0.015f, 0.015f, 0.017f), smoothness: 0.85f);
+        public static Material KnobBlack => Plain("KnobBlack", new Color(0.022f, 0.022f, 0.022f), smoothness: 0.62f);   // 黒い樹脂
+        public static Material KnobMark => Plain("KnobMark", new Color(0.9f, 0.9f, 0.88f), smoothness: 0.5f);
+        public static Material Chrome => Plain("Chrome", new Color(0.95f, 0.95f, 0.95f), smoothness: 0.93f, metallic: 1f);
+        public static Material GlassTop => ClearCoat("GasGlassTop", new Color(0.02f, 0.02f, 0.024f), smoothness: 0.9f);  // グリルののぞき窓・電子レンジの表示の窓
         public static Material CastIron => Textured("CastIron", null, "generated/cast_iron_nor_gl.png", "generated/cast_iron_mask.png", sizeMeters: 0.1f, smoothness: 1f, color: new Color(0.06f, 0.06f, 0.06f), normalStrength: 0.7f);
         public static Material BurnerEnamel => ClearCoat("BurnerEnamel", new Color(0.018f, 0.018f, 0.02f), smoothness: 0.75f);
         public static Material BurnerAluminum => Plain("BurnerAluminum", new Color(0.5f, 0.5f, 0.5f), smoothness: 0.45f, metallic: 0.9f);
         public static Material BurnerPort => Plain("BurnerPort", new Color(0.01f, 0.01f, 0.01f), smoothness: 0.2f);
         public static Material IgniterCeramic => Plain("IgniterCeramic", new Color(0.93f, 0.92f, 0.88f), smoothness: 0.75f);
-        public static Material StoveLed => Glowing("StoveLed", new Color(1f, 0.42f, 0.08f), intensity: 0f, baseColor: new Color(0.03f, 0.025f, 0.02f)); // 光る強さは再生中に GasBurnerView が決める
         public static Material GasFlame => Particle("GasFlame", "generated/flame_gas.png", ParticleBlend.Add, new Color(1.6f, 1.6f, 1.8f));
 
         // ---- 電子レンジ ----

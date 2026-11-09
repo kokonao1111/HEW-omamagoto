@@ -13,6 +13,7 @@ namespace Omamagoto.Tests
     {
         GameObject routerObject;
         GasBurnerView burner;
+        Transform knob;
         ShakerView salt;
         ShakerView pepper;
         GameObject panFloor;
@@ -29,7 +30,9 @@ namespace Omamagoto.Tests
             burnerObject.SetActive(false); // 欄に値を入れてから動かす
             burnerObject.transform.position = KitchenLayout.BurnerCenter(right: true);
             burner = burnerObject.AddComponent<GasBurnerView>();
+            knob = new GameObject("Knob").transform;
             TestFields.Set(burner, "router", router);
+            TestFields.Set(burner, "knob", knob);
             burnerObject.SetActive(true);
 
             salt = CreateShaker(router, "salt", new Vector3(0.445f, 0.012f, 0.385f));
@@ -58,6 +61,7 @@ namespace Omamagoto.Tests
         {
             Time.timeScale = 1;
             Object.Destroy(burner.gameObject);
+            Object.Destroy(knob.gameObject);
             Object.Destroy(salt.gameObject);
             Object.Destroy(pepper.gameObject);
             Object.Destroy(panFloor);
@@ -82,6 +86,22 @@ namespace Omamagoto.Tests
             yield return Wait.Until(() => !burner.IsBurning, 2, "火が消えない");
             yield return null;
             Assert.IsFalse(burner.transform.Find("Flame 1").gameObject.activeSelf, "火を消したのに炎が見えている");
+        }
+
+        [UnityTest]
+        public IEnumerator つまみが火の強さの所まで回り_消すと戻る()
+        {
+            yield return null;
+            Assert.AreEqual(0, knob.localEulerAngles.z, 0.5f, "はじめからつまみが回っている");
+
+            sender.Fire(3); // 強：左へ 90 度
+            yield return Wait.Until(() => Mathf.Abs(Mathf.DeltaAngle(knob.localEulerAngles.z, 90)) < 1, 2, "強の所まで回らない");
+
+            sender.Fire(1); // 弱：さらに左へ（150 度）
+            yield return Wait.Until(() => Mathf.Abs(Mathf.DeltaAngle(knob.localEulerAngles.z, 150)) < 1, 2, "弱の所まで回らない");
+
+            sender.Fire(0);
+            yield return Wait.Until(() => Mathf.Abs(Mathf.DeltaAngle(knob.localEulerAngles.z, 0)) < 1, 2, "消すと戻らない");
         }
 
         [UnityTest]

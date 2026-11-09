@@ -124,11 +124,11 @@ namespace Omamagoto.Tests
         [Test]
         public void コンロとフライパンの位置()
         {
-            // 右のバーナーはコンロの左端（600 mm）から 300 mm、奥行きの真ん中（60 + 150 mm）。ガラスの天板の上面は 6 mm
-            AssertNear(new Vector3(0.900f, 0.006f, 0.210f), KitchenLayout.BurnerCenter(right: true));
-            AssertNear(new Vector3(0.700f, 0.006f, 0.210f), KitchenLayout.BurnerCenter(right: false));
-            // フライパンは五徳の上。現実のおもちゃと同じ高さ（コンロ板 15 mm ＋ 浮かせる 25 mm ＝ 40 mm）
-            AssertNear(new Vector3(0.900f, 0.040f, 0.210f), KitchenLayout.PanBottomCenter);
+            // 右のバーナーはコンロの左端（600 mm）から 300 mm、奥行きの真ん中（60 + 150 mm）。ガステーブルの天板の上面は 90 mm
+            AssertNear(new Vector3(0.900f, 0.090f, 0.210f), KitchenLayout.BurnerCenter(right: true));
+            AssertNear(new Vector3(0.700f, 0.090f, 0.210f), KitchenLayout.BurnerCenter(right: false));
+            // フライパンは五徳の上（天板 ＋ 34 mm）。左右・奥行きは現実と同じ
+            AssertNear(new Vector3(0.900f, 0.124f, 0.210f), KitchenLayout.PanBottomCenter);
         }
 
         [Test]
