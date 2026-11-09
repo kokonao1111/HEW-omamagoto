@@ -1,0 +1,59 @@
+# Unity が自動で作るフォルダー（git に入れない）
+/[Ll]ibrary/
+/[Tt]emp/
+/[Oo]bj/
+/[Bb]uild/
+/[Bb]uilds/
+/[Ll]ogs/
+/[Uu]ser[Ss]ettings/
+/[Mm]emoryCaptures/
+/[Rr]ecordings/
+
+# アセットストアのツールが作るもの
+/[Aa]ssets/AssetStoreTools*
+
+# エディター（Visual Studio・Rider・VS Code）が作るもの
+.vs/
+.vscode/
+.idea/
+.gradle/
+ExportedObj/
+.consulo/
+*.csproj
+*.unityproj
+*.sln
+*.slnx
+*.suo
+*.tmp
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# 消したアセットの .meta が残らないように
+*.pidb.meta
+*.pdb.meta
+*.mdb.meta
+
+# クラッシュのレポート
+sysinfo.txt
+
+# ビルドしたもの
+*.apk
+*.aab
+*.unitypackage
+*.app
+
+# Unity が自動で作るファイル
+crashlytics-build.properties
+/[Aa]ssets/[Ss]treamingAssets/aa.meta
+/[Aa]ssets/[Ss]treamingAssets/aa/*
+
+# OS が作るファイル
+.DS_Store
+Thumbs.db

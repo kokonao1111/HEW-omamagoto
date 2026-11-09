@@ -22,6 +22,21 @@ Unity を作る PC の Claude が、やったことを書く。新しいもの�
 
 ## 記録
 
+### 2026-11-09 Unity のプロジェクトを作った（引き継ぎ 5.1）
+
+- やったこと：
+  - この PC に Unity 6000.3.28f1 を入れた（6.5 はほかの個人のプロジェクトで使うので残した）
+  - ブランチ `feature/unity-screen` を作った
+  - `unity/` に Unity のプロジェクトを作った。テンプレートは「Universal 3D」（URP 17.3.0）。コマンドで作った（`Unity.exe -createProject … -cloneFromTemplate com.unity.template.3d-cross-platform-17.0.14.tgz`）
+  - `unity/.gitignore`（Unity の標準）、`unity/.gitattributes`（画像・3D モデル・音・動画・フォントを LFS へ。`unity/` の中だけ）、`unity/README.md`（開き方）を置いた
+  - この PC で `git lfs install` をした。`unity/` の `.png` は LFS、`screen/` の `.png` は LFS にならないことを `git check-attr` で確かめた
+  - Claude が Unity を操作できるように、MCP for Unity（`com.coplaydev.unity-mcp`）を `unity/Packages/manifest.json` に入れた。チームで同じものが入るように v10.3.0 に固定した。エディターの中だけで動く
+- 決まったこと：コミット・プッシュはユーザーがする（ルールどおり）。Claude が Unity を操作するのは MCP for Unity で
+- 確かめたこと：`ProjectVersion.txt` が 6000.3.28f1、GraphicsSettings に URP の設定が入っている。プロジェクトを作ったときのコンパイルエラーは 0。エディターを開くと MCP for Unity のサーバーが 8080 番で自動で立ち上がった
+- まだ確かめていないこと・困っていること：テンプレートに入っている Unity Version Control（`com.unity.collab-proxy`）は git を使うので要らないが、まだ残している
+- 次にやること：5.2 イベントを受け取る（WebSocket）、5.3 キーでイベントを出す
+- 頼みたいこと（チーム）：ブランチ `feature/unity-screen` を pull して、Unity Hub で `unity` フォルダーを「追加」すれば開ける（`unity/README.md`）
+
 ### 2026-11-09 Unity のバージョンと描画の方式を決めた（引き継ぎ 5.0）
 
 - やったこと：引き継ぎと作業記録を読んだ。Unity の今の状況を調べた。`docs/Unity_引き継ぎ.md` の 3 章に決まったことを足し、8 章から消した
