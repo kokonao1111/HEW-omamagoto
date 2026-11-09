@@ -67,6 +67,11 @@ namespace Omamagoto.Testing
             Send(new ScreenEvent { Type = EventNames.Position, Item = "carrot", X = x, Y = y, Rotation = rotation, Visible = true });
         }
 
+        public void CarrotHidden()
+        {
+            Send(new ScreenEvent { Type = EventNames.Position, Item = "carrot", Visible = false });
+        }
+
         /// <summary>包丁の刃先と柄のはしの位置（まな板の範囲で 0〜1）</summary>
         public void KnifePosition(float tipX, float tipY, float gripX, float gripY)
         {

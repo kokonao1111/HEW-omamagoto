@@ -69,6 +69,15 @@
 router.OnCut += e => Debug.Log($"ピースが {e.Count} 個になった");
 ```
 
+## キッチンの画面
+
+- メニュー「**Omamagoto → キッチンを作り直す**」で、シーンの `Kitchen` を作り直す（中は全部消えて作り直される）。作り直したらシーンを保存する
+- 配置は現実のキッチン台と同じ（`Assets/Scripts/Kitchen/KitchenLayout.cs`。数字は `tools/kitchen_plan.py` の `P` と同じ。`P` を変えたら、ここも直して作り直す）
+- 座標：Unity の 1 = 1 m。台の左手前・天板の上面が原点。x は右、y は上、z は奥
+- カメラ・光・空（HDRI）・影の距離も、作り直すときに決まる（`Assets/Scripts/Editor/KitchenSceneBuilder.cs`）
+- 包丁とにんじんは、再生したときにスクリプトで形を作る（`KnifeView`・`CarrotView`）。にんじんは最初の `cut` で一気に輪切り（18 枚＋葉の付いた端）になって、ドミノのように倒れる
+- 素材（テクスチャ・HDRI）は CC0 だけ。出どころは `Assets/CREDITS.md`
+
 ## スクリプトの場所
 
 | ファイル | 役目 |
@@ -80,12 +89,20 @@ router.OnCut += e => Debug.Log($"ピースが {e.Count} 個になった");
 | `Assets/Scripts/Testing/KeyboardEventSender.cs` | キーでイベントを出す |
 | `Assets/Scripts/Testing/DemoPlayer.cs` | サーバーがないときのデモ |
 | `Assets/Scripts/Testing/StatusOverlay.cs` | 左上の表示 |
+| `Assets/Scripts/Kitchen/KitchenLayout.cs` | 現実のキッチン台の寸法と、まな板の座標 → Unity の位置 |
+| `Assets/Scripts/Kitchen/KnifeView.cs` | 包丁（位置・振り下ろし・消える） |
+| `Assets/Scripts/Kitchen/CarrotView.cs` | にんじん（位置・切る・戻す） |
+| `Assets/Scripts/Kitchen/Shapes/` | 形を作る道具（ろくろの形・板の形・にんじん） |
+| `Assets/Scripts/Editor/KitchenSceneBuilder.cs` | メニューの「キッチンを作り直す」 |
+| `Assets/Scripts/Editor/KitchenMaterials.cs` | キッチンのマテリアル（色・つや）。色を変えたいときはここ |
 
 ## テスト
 
 Unity のメニュー「Window → General → Test Runner」で流せる。
 
-- **EditMode**（14 個）：JSON の読み方、振り分け、`seq` の重複、作るイベントの形
-- **PlayMode**（17 個）：キー（Input System でキーを押したことにする）、デモ（20 倍速）、サーバーとの接続（テストの中ににせサーバーを立てる。`Assets/Tests/PlayMode/FakeScreenServer.cs`）
+- **EditMode**（21 個）：JSON の読み方、振り分け、`seq` の重複、作るイベントの形、形（面の向き・にんじんの大きさ）、キッチンの寸法の計算
+- **PlayMode**（29 個）：キー（Input System でキーを押したことにする）、デモ（20 倍速）、サーバーとの接続（テストの中ににせサーバーを立てる。`Assets/Tests/PlayMode/FakeScreenServer.cs`）、包丁、にんじん（切る・倒れる・戻す）
 
 スクリプトを変えたら、両方流して全部成功するか確かめる。
+
+MCP for Unity からテストを流すと、Project Settings の Enter Play Mode Options が変わることがある。流したあとは `git diff unity/ProjectSettings` で確かめ、変わっていたら戻す。
