@@ -13,9 +13,11 @@ namespace Omamagoto.Editor
     /// 寸法は KitchenLayout（＝ tools/kitchen_plan.py の P）のとおり。現実のキッチンと同じ配置になる。
     ///
     /// 作り直すと「Kitchen」の中は全部消えて作り直されるので、手で直したい所は、ここから呼んでいるコードを直す：
-    ///   KitchenRoomBuilder（天板・引き出し・壁）、KitchenApplianceBuilder（IH・電子レンジ）、
+    ///   KitchenRoomBuilder（天板・引き出し・壁）、KitchenStoveBuilder（ガスコンロ）、KitchenMicrowaveBuilder（電子レンジ）、
     ///   KitchenToolBuilder（まな板・皿・フライパン・塩こしょう）、KitchenLightingSetup（カメラ・光・空・描画）、
     ///   KitchenMaterials（色・つや）
+    ///
+    /// 再生中に動くもの（炎・フライパン・塩こしょう・包丁・にんじん）には、ここで動かすスクリプトを付ける
     /// </summary>
     public static class KitchenSceneBuilder
     {
@@ -36,19 +38,61 @@ namespace Omamagoto.Editor
 
             var root = new GameObject(RootName).transform;
             KitchenRoomBuilder.Build(Group(root, "Room"));
-            KitchenApplianceBuilder.Build(Group(root, "Appliances"));
-            KitchenToolBuilder.Build(Group(root, "Tools"));
+            var appliances = Group(root, "Appliances");
+            var stove = KitchenStoveBuilder.Build(appliances);
+            KitchenMicrowaveBuilder.Build(appliances);
+            var tools = KitchenToolBuilder.Build(Group(root, "Tools"));
+
+            var burner = AddBurner(stove, router);
+            var pan = AddPan(tools.Pan, burner, router);
+            AddShaker(tools.SaltShaker, "salt", KitchenMaterials.SaltGrain, sideOffset: -0.02f, router);
+            AddShaker(tools.PepperShaker, "pepper", KitchenMaterials.PepperGrain, sideOffset: 0.02f, router);
 
             var items = Group(root, "Items");
             BuildKnife(items, router);
-            BuildCarrot(items, router);
+            BuildCarrot(items, router, pan);
 
-            KitchenLightingSetup.Apply(root);
+            KitchenLightingSetup.Apply();
 
             AssetDatabase.SaveAssets();
             EditorSceneManager.MarkSceneDirty(root.gameObject.scene);
             Selection.activeGameObject = root.gameObject;
             Debug.Log("[キッチン] 作り直しました。シーンを保存してください");
+        }
+
+        /// <summary>右のバーナーの炎（再生したときに GasBurnerView が炎を作る）</summary>
+        static GasBurnerView AddBurner(KitchenStoveBuilder.Result stove, EventRouter router)
+        {
+            var view = stove.RightBurner.gameObject.AddComponent<GasBurnerView>();
+            SetFields(view,
+                ("router", router),
+                ("flameMaterial", KitchenMaterials.GasFlame),
+                ("lamp", stove.RightLamp));
+            return view;
+        }
+
+        /// <summary>フライパン（入れる・焼ける・湯気・皿へ移す）</summary>
+        static PanView AddPan(Transform pan, GasBurnerView burner, EventRouter router)
+        {
+            var view = pan.gameObject.AddComponent<PanView>();
+            SetFields(view,
+                ("router", router),
+                ("burner", burner),
+                ("steamMaterial", KitchenMaterials.Steam));
+            return view;
+        }
+
+        /// <summary>塩・こしょうの入れ物（振る）。sideOffset はフライパンの真ん中から、どちらに寄せて振るか（m）</summary>
+        static void AddShaker(Transform shaker, string item, Material grainMaterial, float sideOffset, EventRouter router)
+        {
+            var view = shaker.gameObject.AddComponent<ShakerView>();
+            SetFields(view,
+                ("router", router),
+                ("grainMaterial", grainMaterial));
+            var serialized = new SerializedObject(view);
+            serialized.FindProperty("item").stringValue = item;
+            serialized.FindProperty("sideOffset").floatValue = sideOffset;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
         }
 
         /// <summary>包丁（再生したときに KnifeView が形を作る）</summary>
@@ -64,7 +108,7 @@ namespace Omamagoto.Editor
         }
 
         /// <summary>にんじん（仮。野菜はチームで作ったモデルに入れかえる予定）</summary>
-        static void BuildCarrot(Transform parent, EventRouter router)
+        static void BuildCarrot(Transform parent, EventRouter router, PanView pan)
         {
             var carrot = new GameObject("Carrot");
             carrot.transform.SetParent(parent, false);
@@ -72,6 +116,7 @@ namespace Omamagoto.Editor
             var view = carrot.AddComponent<CarrotView>();
             SetFields(view,
                 ("router", router),
+                ("pan", pan),
                 ("skinMaterial", KitchenMaterials.CarrotSkin),
                 ("cutMaterial", KitchenMaterials.CarrotCut),
                 ("leafMaterial", KitchenMaterials.CarrotLeaf));

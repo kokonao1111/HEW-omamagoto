@@ -30,8 +30,8 @@ namespace Omamagoto.Kitchen
         public const float LeftBurnerX = 100, RightBurnerX = 300; // コンロ板の左端 → バーナーの中心
         public const float BurnerRadius = 60;
         public const float PanRadius = 90;   // フライパン（おもちゃ）の半径
-        // 現実のおもちゃは、コンロ板（15 mm）の上の五徳にフライパンを 25 mm 浮かせてのせる（pan_z）。
-        // 画面では IH のガラス（6 mm）に直接のせるので、この 2 つは画面では使わない
+        // 現実のおもちゃは、コンロ板（15 mm）の上に、フライパンを 25 mm 浮かせてのせる（pan_z）。
+        // 画面のガスコンロでは、フライパンを五徳の上にのせて、底の高さを現実と同じ 40 mm にする
         public const float RealStovePlateThickness = 15;
         public const float RealPanHeight = 25;
 
@@ -69,17 +69,20 @@ namespace Omamagoto.Kitchen
         /// <summary>皿の真ん中（天板の上）</summary>
         public static Vector3 PlateCenter => ToWorld(PlateX + PlateWidth / 2, PlateY + PlateDepth / 2, 0);
 
-        /// <summary>画面のコンロ（IH のガラスの板）の上面の高さ（mm）</summary>
+        /// <summary>画面のガスコンロ（ガラスの天板）の上面の高さ（mm）</summary>
         public const float StoveTopZ = 6;
 
-        /// <summary>加熱する所の真ん中（IH のガラスの上面）。right が true なら右</summary>
+        /// <summary>五徳の上面＝フライパンの底の高さ（mm）。現実のおもちゃと同じ</summary>
+        public const float TrivetTopZ = RealStovePlateThickness + RealPanHeight;
+
+        /// <summary>バーナーの真ん中（ガラスの天板の上面）。right が true なら右</summary>
         public static Vector3 BurnerCenter(bool right)
         {
             float x = StoveX + (right ? RightBurnerX : LeftBurnerX);
             return ToWorld(x, StoveY + StoveDepth / 2, StoveTopZ);
         }
 
-        /// <summary>フライパンの底の真ん中（右の IH の上に、じかにのせる）</summary>
-        public static Vector3 PanBottomCenter => BurnerCenter(right: true);
+        /// <summary>フライパンの底の真ん中（右のバーナーの五徳の上）</summary>
+        public static Vector3 PanBottomCenter => BurnerCenter(right: true) + Vector3.up * (TrivetTopZ - StoveTopZ) / 1000f;
     }
 }

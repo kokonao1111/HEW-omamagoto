@@ -16,12 +16,12 @@ namespace Omamagoto.Editor
         const string SkyMaterialPath = "Assets/Art/Materials/SkyLebombo.mat";
         const string RendererPath = "Assets/Settings/PC_Renderer.asset";
 
-        public static void Apply(Transform kitchenRoot)
+        public static void Apply()
         {
             SetUpCamera();
             SetUpSunLight();
             SetUpSky();
-            AddReflectionProbe(kitchenRoot);
+            AddReflectionProbe();
             SetUpRenderQuality();
             AddAmbientOcclusion();
             SetUpPostProcessing();
@@ -93,15 +93,20 @@ namespace Omamagoto.Editor
 
         /// <summary>
         /// キッチンのまわりを写す「映り込み」のカメラ。ステンレスやガラス・皿に、タイルや天板が映るようにする。
-        /// 再生したときに 1 回だけ写す（毎フレーム写すと重い）
+        /// 再生したときに 1 回だけ写す（毎フレーム写すと重い）。
+        ///
+        /// Kitchen の外（シーンのいちばん上）に置いて、作り直しても消さずに使い回す。
+        /// 作り直すたびに消して作ると、Unity の描画が消えた映り込みを探してエラーになり、画面が真っ白になる（2026-11-09 に確かめた）
         /// </summary>
-        static void AddReflectionProbe(Transform kitchenRoot)
+        static void AddReflectionProbe()
         {
-            var probeObject = new GameObject("ReflectionProbe");
-            probeObject.transform.SetParent(kitchenRoot, false);
+            const string probeName = "KitchenReflectionProbe";
+            var probeObject = GameObject.Find(probeName);
+            if (probeObject == null) probeObject = new GameObject(probeName);
             probeObject.transform.position = KitchenLayout.ToWorld(KitchenLayout.Width / 2, KitchenLayout.Depth / 2, 250);
 
-            var probe = probeObject.AddComponent<ReflectionProbe>();
+            var probe = probeObject.GetComponent<ReflectionProbe>();
+            if (probe == null) probe = probeObject.AddComponent<ReflectionProbe>();
             probe.mode = ReflectionProbeMode.Realtime;
             probe.refreshMode = ReflectionProbeRefreshMode.OnAwake;
             probe.timeSlicingMode = ReflectionProbeTimeSlicingMode.NoTimeSlicing;

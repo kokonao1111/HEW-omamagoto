@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using Omamagoto.Kitchen;
 using Omamagoto.Kitchen.Shapes;
@@ -62,6 +63,59 @@ namespace Omamagoto.Editor
             bool collider = false, string meshName = null)
         {
             return Lathe(parent, objectName, parts, positionMm, new[] { material }, collider, meshName);
+        }
+
+        /// <summary>
+        /// 曲がった棒を置く（SweepMesh）。
+        /// profileMm は断面（mm。左回り）、pathMm は道すじ（現実の座標 mm）、upReal ははじめの点での断面の「上」の向き（現実の向き）
+        /// </summary>
+        public static Transform Sweep(Transform parent, string objectName, Vector2[] profileMm, Vector3[] pathMm, Vector3 upReal,
+            Material material, bool closedPath = false, string meshName = null)
+        {
+            Vector3 originMm = Vector3.zero;
+            foreach (var point in pathMm) originMm += point / pathMm.Length; // 道すじの真ん中を、物の位置にする
+
+            var profile = new Vector2[profileMm.Length];
+            for (int i = 0; i < profile.Length; i++) profile[i] = profileMm[i] / 1000f;
+            var path = new Vector3[pathMm.Length];
+            for (int i = 0; i < path.Length; i++) path[i] = ToWorldSize(pathMm[i] - originMm);
+
+            Mesh mesh = SaveMesh(SweepMesh.Build(profile, path, ToWorldSize(upReal), closedPath), meshName ?? objectName);
+            return Place(parent, objectName, mesh, KitchenLayout.ToWorld(originMm.x, originMm.y, originMm.z), material);
+        }
+
+        /// <summary>
+        /// 同じ形をたくさん並べて、1 つのメッシュにまとめて置く（穴・すき間・ギザギザなど、小さな物がたくさんある所）。
+        /// placements は、形ごとの位置と向き（Unity の座標 m。positionMm からの相対）
+        /// </summary>
+        public static Transform Combined(Transform parent, string objectName, Vector3 positionMm, Material material,
+            IEnumerable<(Mesh mesh, Matrix4x4 placement)> pieces)
+        {
+            var combine = new List<CombineInstance>();
+            foreach (var (pieceMesh, placement) in pieces) combine.Add(new CombineInstance { mesh = pieceMesh, transform = placement });
+
+            var mesh = new Mesh { indexFormat = UnityEngine.Rendering.IndexFormat.UInt32 };
+            mesh.CombineMeshes(combine.ToArray(), mergeSubMeshes: true, useMatrices: true);
+            mesh.RecalculateBounds();
+            return Place(parent, objectName, SaveMesh(mesh, objectName), KitchenLayout.ToWorld(positionMm.x, positionMm.y, positionMm.z), material);
+        }
+
+        /// <summary>Combined で使う「位置（現実の座標 mm）と向き（Unity の回転）」</summary>
+        public static Matrix4x4 At(Vector3 offsetMm, Quaternion rotation)
+        {
+            return Matrix4x4.TRS(ToWorldSize(offsetMm), rotation, Vector3.one);
+        }
+
+        /// <summary>メッシュを、位置（m）に置く</summary>
+        public static Transform Place(Transform parent, string objectName, Mesh mesh, Vector3 position, Material material)
+        {
+            var gameObject = new GameObject(objectName);
+            gameObject.transform.SetParent(parent, false);
+            gameObject.transform.position = position;
+            gameObject.AddComponent<MeshFilter>().sharedMesh = mesh;
+            gameObject.AddComponent<MeshRenderer>().sharedMaterial = material;
+            gameObject.isStatic = true;
+            return gameObject.transform;
         }
 
         /// <summary>ろくろの形の 1 つの部分。points は (半径, 高さ) mm。materialIndex はマテリアルの番号</summary>

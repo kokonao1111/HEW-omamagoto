@@ -7,12 +7,21 @@ namespace Omamagoto.Editor
     /// <summary>道具：まな板・皿・フライパン・塩とこしょうの入れ物</summary>
     public static class KitchenToolBuilder
     {
-        public static void Build(Transform parent)
+        /// <summary>作ったもののうち、再生中に動かすもの（PanView・ShakerView を付ける所）</summary>
+        public struct Result
+        {
+            public Transform Pan;
+            public Transform SaltShaker;
+            public Transform PepperShaker;
+        }
+
+        public static Result Build(Transform parent)
         {
             BuildBoard(parent);
             BuildPlate(parent);
-            BuildPan(parent);
-            BuildShakers(parent);
+            var result = new Result { Pan = BuildPan(parent) };
+            BuildShakers(parent, out result.SaltShaker, out result.PepperShaker);
+            return result;
         }
 
         /// <summary>まな板：明るい木。角を 6 mm 丸める</summary>
@@ -41,10 +50,10 @@ namespace Omamagoto.Editor
         }
 
         /// <summary>
-        /// 直径 180 mm のフライパン（右の IH の上）。内側は黒いコーティング、外側は濃い灰色の金属。
+        /// 直径 180 mm のフライパン（右のガスコンロの五徳の上）。内側は黒いコーティング、外側は濃い灰色の金属。
         /// 柄は黒い樹脂で、ステンレスの金具でとめてある
         /// </summary>
-        static void BuildPan(Transform parent)
+        static Transform BuildPan(Transform parent)
         {
             const int outside = 0, inside = 1;
             var parts = new[]
@@ -67,10 +76,14 @@ namespace Omamagoto.Editor
 
             AddLocalBox(handleRoot, "PanHandleBracket", new Vector3(0.096f, 0, 0), new Vector3(0.03f, 0.012f, 0.024f), 0.003f, KitchenMaterials.Stainless);
             AddLocalBox(handleRoot, "PanHandleGrip", new Vector3(0.19f, 0, 0), new Vector3(0.165f, 0.018f, 0.026f), 0.008f, KitchenMaterials.BlackResin);
+            return pan;
         }
 
-        /// <summary>塩とこしょうのガラスの入れ物（中身が見える）。ふたはステンレス。木のトレイにのせる</summary>
-        static void BuildShakers(Transform parent)
+        /// <summary>
+        /// 塩とこしょうのガラスの入れ物（中身が見える）。ふたはステンレス。木のトレイにのせる。
+        /// 入れ物は再生中に動く（ShakerView）ので、底の真ん中を原点にした入れ物にまとめ、動かない印（static）を外す
+        /// </summary>
+        static void BuildShakers(Transform parent, out Transform salt, out Transform pepper)
         {
             float x = KitchenLayout.SpiceX, y = KitchenLayout.SpiceY;
             float w = KitchenLayout.SpiceWidth, d = KitchenLayout.SpiceDepth;
@@ -94,14 +107,22 @@ namespace Omamagoto.Editor
                 Part(Mm(20.7f, 66), Mm(20.7f, 80), Mm(19.5f, 84), Mm(15, 87), Mm(8, 88.3f), Mm(0, 88.5f)),
             };
 
+            salt = pepper = null;
             foreach (bool isSalt in new[] { true, false })
             {
                 string label = isSalt ? "Salt" : "Pepper";
                 var position = new Vector3(x + (isSalt ? 45 : 135), y + d / 2, 12);
-                Lathe(parent, $"{label}Content", contentParts, position, isSalt ? KitchenMaterials.Salt : KitchenMaterials.Pepper,
+                var shaker = Group(parent, $"{label}Shaker");
+                shaker.position = KitchenLayout.ToWorld(position.x, position.y, position.z);
+
+                Lathe(shaker, $"{label}Content", contentParts, position, isSalt ? KitchenMaterials.Salt : KitchenMaterials.Pepper,
                     meshName: "ShakerContent");
-                Lathe(parent, $"{label}Glass", glassParts, position, KitchenMaterials.Glass, meshName: "ShakerGlass");
-                Lathe(parent, $"{label}Cap", capParts, position, KitchenMaterials.Stainless, meshName: "ShakerCap");
+                Lathe(shaker, $"{label}Glass", glassParts, position, KitchenMaterials.Glass, meshName: "ShakerGlass");
+                Lathe(shaker, $"{label}Cap", capParts, position, KitchenMaterials.Stainless, meshName: "ShakerCap");
+                foreach (Transform part in shaker) part.gameObject.isStatic = false;
+
+                if (isSalt) salt = shaker;
+                else pepper = shaker;
             }
         }
 

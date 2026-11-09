@@ -39,6 +39,12 @@ namespace Omamagoto.Testing
             Send(new ScreenEvent { Type = EventNames.Add, Item = "carrot", Zone = "pan", Count = pieceCount });
         }
 
+        /// <param name="pieceCount">皿に入ったピースの数</param>
+        public void AddToPlate(int pieceCount)
+        {
+            Send(new ScreenEvent { Type = EventNames.Add, Item = "carrot", Zone = "plate", Count = pieceCount });
+        }
+
         /// <param name="item">"salt" か "pepper"</param>
         public void Season(string item, float amountGrams, float totalGrams)
         {

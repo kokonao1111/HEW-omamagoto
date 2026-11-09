@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace Omamagoto.Tests
 {
-    /// <summary>形を作る道具（LatheMesh・ExtrudedMesh・CarrotShape）と、キッチンの寸法の計算</summary>
+    /// <summary>形を作る道具（LatheMesh・ExtrudedMesh・RoundedBoxMesh・SweepMesh・CarrotShape）と、キッチンの寸法の計算</summary>
     public class KitchenShapeTests
     {
         /// <summary>
@@ -124,10 +124,41 @@ namespace Omamagoto.Tests
         [Test]
         public void コンロとフライパンの位置()
         {
-            // 右の加熱する所はコンロの左端（600 mm）から 300 mm、奥行きの真ん中（60 + 150 mm）。IH のガラスの上面は 6 mm
+            // 右のバーナーはコンロの左端（600 mm）から 300 mm、奥行きの真ん中（60 + 150 mm）。ガラスの天板の上面は 6 mm
             AssertNear(new Vector3(0.900f, 0.006f, 0.210f), KitchenLayout.BurnerCenter(right: true));
             AssertNear(new Vector3(0.700f, 0.006f, 0.210f), KitchenLayout.BurnerCenter(right: false));
-            AssertNear(new Vector3(0.900f, 0.006f, 0.210f), KitchenLayout.PanBottomCenter);
+            // フライパンは五徳の上。現実のおもちゃと同じ高さ（コンロ板 15 mm ＋ 浮かせる 25 mm ＝ 40 mm）
+            AssertNear(new Vector3(0.900f, 0.040f, 0.210f), KitchenLayout.PanBottomCenter);
+        }
+
+        [Test]
+        public void 曲がった棒の形の面が外を向いている()
+        {
+            Vector2[] profile = SweepMesh.RoundedRect(0.012f, 0.008f, 0.003f);
+            Vector3[] path = SweepMesh.Polyline(new[]
+            {
+                new Vector3(0, 0, 0), new Vector3(0, 0, -0.02f), new Vector3(0, 0.12f, -0.02f), new Vector3(0, 0.12f, 0),
+            }, 0.01f);
+            AssertFacesOutward(SweepMesh.Build(profile, path, Vector3.right));
+
+            // 輪になった道すじ（ふたなし）
+            AssertFacesOutward(SweepMesh.Build(SweepMesh.Circle(0.003f), SweepMesh.Arc(Vector3.zero, 0.09f, 0, 360, 48), Vector3.up, closedPath: true));
+        }
+
+        [Test]
+        public void 曲がった棒の形_法線は道すじから外へ向く()
+        {
+            // まっすぐ上へ伸びる、半径 5 mm の丸い棒
+            var mesh = SweepMesh.Build(SweepMesh.Circle(0.005f), new[] { Vector3.zero, new Vector3(0, 0.05f, 0), new Vector3(0, 0.1f, 0) }, Vector3.forward);
+            var vertices = mesh.vertices;
+            var normals = mesh.normals;
+            int sideVertexCount = 3 * 17; // 断面 16 点 ＋ 継ぎ目 1 点 × 3 か所（そのあとは、ふた）
+            for (int i = 0; i < sideVertexCount; i++)
+            {
+                Vector3 outward = new Vector3(vertices[i].x, 0, vertices[i].z);
+                Assert.AreEqual(0.005f, outward.magnitude, 0.0001f, "棒の太さがちがう");
+                Assert.Greater(Vector3.Dot(outward, normals[i]), 0, $"頂点 {i} の法線が内を向いている");
+            }
         }
 
         static void AssertNear(Vector3 expected, Vector3 actual)
