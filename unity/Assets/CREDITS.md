@@ -4,9 +4,9 @@
 
 | ファイル | 素材の名前 | 作った人 | 出どころ | ライセンス |
 | --- | --- | --- | --- | --- |
-| `Art/HDRI/comfy_cafe_2k.hdr` | Comfy Café | Sergej Majboroda | https://polyhaven.com/a/comfy_cafe | CC0 |
-| `Art/Textures/kitchen_wood/` | Kitchen Wood | Rob Tuytel | https://polyhaven.com/a/kitchen_wood | CC0 |
+| `Art/HDRI/lebombo_2k.hdr` | Lebombo | Greg Zaal | https://polyhaven.com/a/lebombo | CC0 |
 | `Art/Textures/oak_veneer_01/` | Oak Veneer 01 | Jenelle van Heerden | https://polyhaven.com/a/oak_veneer_01 | CC0 |
-| `Art/Textures/interior_tiles/` | Interior Tiles | Charlotte Baglioni | https://polyhaven.com/a/interior_tiles | CC0 |
+| `Art/Textures/generated/` | 白い人工大理石・白いタイル・ステンレスのヘアライン | このチーム（Python で作った） | — | チームの自作 |
 
-- にんじん・包丁・コンロ・皿などの形は、スクリプトで作っている（`Assets/Scripts/Kitchen/`）。外の素材は使っていない
+- `oak_veneer_01_mask_1k.png` は、Poly Haven のざらつきの画像（Rough）から作った（なめらかさ = 1 − ざらつき）
+- キッチンの台・家電・道具・包丁・にんじん（仮）の形は、スクリプトで作っている（`Assets/Scripts/Kitchen/`、`Assets/Scripts/Editor/`）。外の 3D モデルは使っていない

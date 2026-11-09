@@ -179,20 +179,39 @@ namespace Omamagoto.Kitchen
             blade.AddComponent<MeshFilter>().sharedMesh = ExtrudedMesh.Build(outline, 1.6f * Scale);
             blade.AddComponent<MeshRenderer>().sharedMaterial = bladeMaterial;
 
-            // 口金（刃と柄のあいだの金具）と柄
-            AddBox("Bolster", new Vector3(-6, -15, 0), new Vector3(12, 30, 10), bladeMaterial);
-            AddBox("Handle", new Vector3(-68, -17, 0), new Vector3(112, 26, 20), handleMaterial);
+            // 口金（刃と柄のあいだの金具）と柄（角を丸める）
+            AddRoundedBox("Bolster", new Vector3(-6, -15, 0), new Vector3(12, 30, 11), 3, bladeMaterial);
+            AddRoundedBox("Handle", new Vector3(-68, -17, 0), new Vector3(112, 26, 20), 8, handleMaterial);
+
+            // 柄をとめるステンレスのびょう（3 つ）。柄をつらぬく短い円柱を、横（Z の向き）に向ける
+            Mesh rivet = LatheMesh.Build(new[]
+            {
+                new LathePart(0, new Vector2(0, -10.6f) * Scale, new Vector2(2.6f, -10.6f) * Scale),
+                new LathePart(0, new Vector2(2.6f, -10.6f) * Scale, new Vector2(2.6f, 10.6f) * Scale),
+                new LathePart(0, new Vector2(2.6f, 10.6f) * Scale, new Vector2(0, 10.6f) * Scale),
+            }, 16);
+            foreach (float x in new[] { -34f, -68f, -102f })
+            {
+                var part = AddPart($"Rivet {x}", rivet, bladeMaterial);
+                part.transform.localPosition = new Vector3(x, -17, 0) * Scale;
+                part.transform.localRotation = Quaternion.Euler(90, 0, 0);
+            }
         }
 
-        void AddBox(string boxName, Vector3 centerMm, Vector3 sizeMm, Material material)
+        void AddRoundedBox(string boxName, Vector3 centerMm, Vector3 sizeMm, float radiusMm, Material material)
         {
-            var box = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            box.name = boxName;
-            Destroy(box.GetComponent<Collider>()); // 包丁は物にぶつからない（見た目だけ）
-            box.transform.SetParent(model.transform, false);
+            var box = AddPart(boxName, RoundedBoxMesh.Build(sizeMm * Scale, radiusMm * Scale), material);
             box.transform.localPosition = centerMm * Scale;
-            box.transform.localScale = sizeMm * Scale;
-            box.GetComponent<MeshRenderer>().sharedMaterial = material;
+        }
+
+        /// <summary>包丁の形の 1 つの部品を足す（当たり判定はなし。見た目だけ）</summary>
+        GameObject AddPart(string partName, Mesh mesh, Material material)
+        {
+            var part = new GameObject(partName);
+            part.transform.SetParent(model.transform, false);
+            part.AddComponent<MeshFilter>().sharedMesh = mesh;
+            part.AddComponent<MeshRenderer>().sharedMaterial = material;
+            return part;
         }
     }
 }

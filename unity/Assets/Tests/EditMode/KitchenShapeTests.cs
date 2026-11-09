@@ -57,6 +57,30 @@ namespace Omamagoto.Tests
         }
 
         [Test]
+        public void 角の丸い箱の面が外を向き_大きさが合っている()
+        {
+            Mesh box = RoundedBoxMesh.Build(new Vector3(0.28f, 0.23f, 0.2f), 0.01f);
+
+            AssertFacesOutward(box);
+            Assert.Less(Vector3.Distance(new Vector3(0.28f, 0.23f, 0.2f), box.bounds.size), 0.0001f);
+            Assert.Less(box.bounds.center.magnitude, 0.0001f, "真ん中が原点にない");
+
+            // 角は丸くなっている（いちばん外の角の点より内側にある）
+            foreach (Vector3 p in box.vertices)
+            {
+                Assert.Less(p.magnitude, new Vector3(0.14f, 0.115f, 0.1f).magnitude - 0.002f);
+            }
+        }
+
+        [Test]
+        public void 角の丸い箱_丸みがなくても作れる()
+        {
+            Mesh box = RoundedBoxMesh.Build(new Vector3(1, 0.5f, 0.2f), 0);
+            AssertFacesOutward(box);
+            Assert.Less(Vector3.Distance(new Vector3(1, 0.5f, 0.2f), box.bounds.size), 0.0001f);
+        }
+
+        [Test]
         public void にんじんのメッシュ_1本まるごと()
         {
             Mesh whole = CarrotShape.BuildPiece(0, 1);
@@ -100,10 +124,10 @@ namespace Omamagoto.Tests
         [Test]
         public void コンロとフライパンの位置()
         {
-            // 右のバーナーはコンロ板の左端（600 mm）から 300 mm、奥行きの真ん中（60 + 150 mm）
-            AssertNear(new Vector3(0.900f, 0.015f, 0.210f), KitchenLayout.BurnerCenter(right: true));
-            AssertNear(new Vector3(0.700f, 0.015f, 0.210f), KitchenLayout.BurnerCenter(right: false));
-            AssertNear(new Vector3(0.900f, 0.040f, 0.210f), KitchenLayout.PanBottomCenter);
+            // 右の加熱する所はコンロの左端（600 mm）から 300 mm、奥行きの真ん中（60 + 150 mm）。IH のガラスの上面は 6 mm
+            AssertNear(new Vector3(0.900f, 0.006f, 0.210f), KitchenLayout.BurnerCenter(right: true));
+            AssertNear(new Vector3(0.700f, 0.006f, 0.210f), KitchenLayout.BurnerCenter(right: false));
+            AssertNear(new Vector3(0.900f, 0.006f, 0.210f), KitchenLayout.PanBottomCenter);
         }
 
         static void AssertNear(Vector3 expected, Vector3 actual)
