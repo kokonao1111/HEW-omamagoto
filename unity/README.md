@@ -25,11 +25,19 @@
 - `.meta` ファイルは必ず git に入れる
 - `Library/` `Temp/` `Logs/` `UserSettings/` などは git に入れない（`unity/.gitignore`）
 
+## 3D モデル（GLB）の置き場所
+
+外から持ってきた 3D モデルは **`Assets/Art/Models/`** に `.glb` で置く。置き方・大きさや向きの決まり・足すときの手順は `Assets/Art/Models/README.md` に書いてある（人もほかの PC の AI も、GLB を足す前に読む）。
+
+- 読み込みは glTFast（下の「入っている道具」）。`.glb` を置けば、Unity が自動でメッシュとマテリアルにする
+- `.glb` は Git LFS に入る。使ってよいのは CC0 かチームの自作だけで、足したら `Assets/CREDITS.md` に出どころを書く
+
 ## 入っている道具
 
 | パッケージ | 何のため |
 | --- | --- |
 | Newtonsoft Json（`com.unity.nuget.newtonsoft-json`） | サーバーの JSON を読む。「届かなかった項目」と「0」を見分けられる |
+| glTFast（`com.unity.cloud.gltfast` 6.21.0） | GLB（glTF 2.0）の 3D モデルを読み込む。Unity 公式。`Assets/Art/Models/` に置いた `.glb` が、そのままメッシュとマテリアルになる |
 | MCP for Unity（`com.coplaydev.unity-mcp` v10.3.0） | Claude Code が Unity のエディターを操作するため。エディターの中だけで動き、ビルドした実行ファイルには入らない。使わない人は気にしなくてよい |
 
 ## 動かし方
