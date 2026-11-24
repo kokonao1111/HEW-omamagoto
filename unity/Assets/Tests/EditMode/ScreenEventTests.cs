@@ -35,6 +35,21 @@ namespace Omamagoto.Tests
         }
 
         [Test]
+        public void 電子レンジの扉の開け閉めを読める()
+        {
+            var opened = Parse("{\"device\":\"camera-door\",\"seq\":1,\"event\":\"door\",\"open\":true}");
+            var closed = Parse("{\"event\":\"door\",\"open\":false}");
+
+            Assert.AreEqual(EventNames.Door, opened.Type);
+            Assert.AreEqual(true, opened.Open);
+            Assert.AreEqual(false, closed.Open);
+            Assert.IsNull(closed.Angle, "angle がないときは null");
+
+            var half = Parse("{\"event\":\"door\",\"open\":true,\"angle\":45.5}");
+            Assert.AreEqual(45.5f, half.Angle);
+        }
+
+        [Test]
         public void 届かなかった項目はnullになり_0とは区別できる()
         {
             var e = Parse("{\"event\":\"position\",\"item\":\"knife\",\"visible\":false}");

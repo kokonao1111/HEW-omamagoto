@@ -27,17 +27,41 @@ namespace Omamagoto.Editor
 
         static Vector3 origin; // 電子レンジの左手前の下（現実の座標 mm）
 
-        public static void Build(Transform parent)
+        /// <summary>電子レンジを作る。返すのは扉の入れ物（蝶番の所。ここを Y のまわりに回すと扉が開く）</summary>
+        public static Transform Build(Transform parent)
         {
             origin = new Vector3(KitchenLayout.MicrowaveX, KitchenLayout.MicrowaveY, 0);
             var microwave = Group(parent, "Microwave");
 
             BuildBody(microwave);
-            BuildDoor(microwave);
-            BuildHandle(microwave);
+            BuildInterior(microwave);
+            var door = DoorHinge(microwave);
+            BuildDoor(door);
+            BuildHandle(door);
             BuildControlPanel(microwave);
             BuildDial(microwave);
             BuildVents(microwave);
+
+            // 扉は再生中に動くので、動かない物の印（Static）を外す
+            foreach (var part in door.GetComponentsInChildren<Transform>(true)) part.gameObject.isStatic = false;
+            return door;
+        }
+
+        /// <summary>扉の入れ物：扉の左のはし（蝶番）・前の面の高さの真ん中に置く</summary>
+        static Transform DoorHinge(Transform microwave)
+        {
+            var hinge = Group(microwave, "Door");
+            Vector3 position = P(DoorLeft, 0, (DoorBottom + DoorTop) / 2);
+            hinge.position = KitchenLayout.ToWorld(position.x, position.y, position.z);
+            return hinge;
+        }
+
+        /// <summary>扉の奥の、庫内の入り口（扉を開けたときに見える、暗い四角）</summary>
+        static void BuildInterior(Transform microwave)
+        {
+            const float left = 16, right = 226, bottom = 62, top = 214;
+            RoundedBox(microwave, "Interior", P((left + right) / 2, -0.2f, (bottom + top) / 2), new Vector3(right - left, 0.4f, top - bottom), 3,
+                KitchenMaterials.MicrowaveCavity);
         }
 
         /// <summary>電子レンジの中の位置（mm）→ 現実の座標（mm）</summary>
@@ -69,7 +93,7 @@ namespace Omamagoto.Editor
                 closedPath: true);
         }
 
-        /// <summary>扉：前のスモークガラス、裏の黒い枠、窓の穴あき板、その奥の庫内</summary>
+        /// <summary>扉：前のスモークガラス、裏の黒い枠、窓の穴あき板、その奥の庫内（全部、扉の入れ物の子にする）</summary>
         static void BuildDoor(Transform microwave)
         {
             float doorWidth = DoorRight - DoorLeft, doorHeight = DoorTop - DoorBottom;

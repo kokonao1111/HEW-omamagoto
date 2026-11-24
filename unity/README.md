@@ -55,6 +55,7 @@
 | S / P | 塩 / こしょうを振る（season。0.5 g ずつ） |
 | 0〜3 | 火の強さ（fire） |
 | Enter | 提供（serve。テスト用に 80 点） |
+| M | 電子レンジの扉を開ける / 閉める（door） |
 | R | リセット（サーバーにつながっていれば、サーバーに頼む） |
 | D | デモを始める / 止める |
 | F1 | 左上の「届いたイベント」の表示を出す / 消す |
@@ -78,6 +79,7 @@ router.OnCut += e => Debug.Log($"ピースが {e.Count} 個になった");
 - 本物らしさは「形（角の丸み `RoundedBoxMesh`、曲がった棒 `SweepMesh`、ろくろの形 `LatheMesh`）・素材（つや・凹凸・クリアコート・ガラス）・光（HDRI・映り込み・物のすき間の影 SSAO・やわらかい影）」で出している
 - ガスコンロ：台に置く、昔ながらの箱型のガステーブル（つまみ式・真ん中に魚焼きグリル）。受け皿・バーナー（炎口 32 個）・点火プラグ・鋳物の五徳。フライパンは五徳の上（底の高さ 124 mm。本物の形を優先したので、現実のおもちゃの 40 mm より高い。左右・奥行きは同じ）
 - 電子レンジ：スモークガラスの扉（窓は穴のあいた金属の板）、曲がった棒の取っ手、時計の表示、ボタン、ギザギザのダイヤル、通気の穴、ゴムの足
+- `door`（2026-11-17 に試しで足した。要件定義書 6.4 にはまだない）：電子レンジの扉が、左の蝶番を軸に手前へ開く。`angle`（度）が届けばその角度まで（半開きなら半開き）、`open` だけなら true で 100 度・false で閉まる。開くと暗い庫内が見える（`MicrowaveDoorView`）。カメラで扉の角度を見て送る試しの道具は `camera/door_watch.py`
 - カメラ・光・空（HDRI）・影・SSAO・MSAA・色の仕上げも、作り直すときに決まる（`Assets/Scripts/Editor/KitchenLightingSetup.cs`）
 - 包丁とにんじんは、再生したときにスクリプトで形を作る（`KnifeView`・`CarrotView`）。にんじんは最初の `cut` で一気に輪切り（18 枚＋葉の付いた端）になって、倒れて散らばる
 - `add`：まな板のピースがフライパンへ飛ぶ（`zone` が `plate` なら皿へ）。サーバーの数（例：4 個）と画面のピースの数（19 個）はちがうので、「まな板の上の何割が入ったか」で飛ばす数を決める
@@ -107,6 +109,7 @@ router.OnCut += e => Debug.Log($"ピースが {e.Count} 個になった");
 | `Assets/Scripts/Kitchen/CarrotView.cs` | にんじん（位置・切る・フライパンや皿へ入れる・戻す） |
 | `Assets/Scripts/Kitchen/PanView.cs` | フライパンと皿（ピースを受け取る・焼く・湯気・跳ねる・皿へ移す） |
 | `Assets/Scripts/Kitchen/GasBurnerView.cs` | ガスコンロの右のバーナー（炎・炎の光・つまみを回す） |
+| `Assets/Scripts/Kitchen/MicrowaveDoorView.cs` | 電子レンジの扉（door の角度まで開く・閉まる） |
 | `Assets/Scripts/Kitchen/ShakerView.cs` | 塩・こしょうの入れ物（飛んでいって振る・粒） |
 | `Assets/Scripts/Kitchen/CookablePiece.cs` | 焼ける食材のピース（焼け具合で色とつやが変わる。どの野菜にも付けられる） |
 | `Assets/Scripts/Kitchen/Flight.cs` | 物を山なりに飛ばして置く |
@@ -128,8 +131,8 @@ router.OnCut += e => Debug.Log($"ピースが {e.Count} 個になった");
 
 Unity のメニュー「Window → General → Test Runner」で流せる。
 
-- **EditMode**（29 個）：JSON の読み方、振り分け、`seq` の重複、作るイベントの形、形（面の向き・にんじんの大きさ）、キッチンの寸法の計算、焼けたときの色
-- **PlayMode**（43 個）：キー（Input System でキーを押したことにする）、デモ（20 倍速）、サーバーとの接続（テストの中ににせサーバーを立てる。`Assets/Tests/PlayMode/FakeScreenServer.cs`）、包丁、にんじん（切る・倒れる・戻す）、焼く流れ（入れる・半分入れる・皿へ・焼けて色が変わる・湯気・提供・リセット）、炎・つまみ、塩・こしょう
+- **EditMode**（30 個）：JSON の読み方、振り分け、`seq` の重複、作るイベントの形、形（面の向き・にんじんの大きさ）、キッチンの寸法の計算、焼けたときの色
+- **PlayMode**（48 個。ほかに Input System の 2 個はパッケージ側で飛ばされる）：電子レンジの扉、キー（Input System でキーを押したことにする）、デモ（20 倍速）、サーバーとの接続（テストの中ににせサーバーを立てる。`Assets/Tests/PlayMode/FakeScreenServer.cs`）、包丁、にんじん（切る・倒れる・戻す）、焼く流れ（入れる・半分入れる・皿へ・焼けて色が変わる・湯気・提供・リセット）、炎・つまみ、塩・こしょう
 
 スクリプトを変えたら、両方流して全部成功するか確かめる。
 

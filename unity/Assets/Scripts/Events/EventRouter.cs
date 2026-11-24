@@ -25,6 +25,7 @@ namespace Omamagoto.Events
         public event Action<ScreenEvent> OnServe;
         public event Action<ScreenEvent> OnReset;
         public event Action<ScreenEvent> OnStatus;
+        public event Action<ScreenEvent> OnDoor;
 
         /// <summary>どのイベントでも呼ばれる（デバッグの表示などに使う）</summary>
         public event Action<ScreenEvent> OnAnyEvent;
@@ -55,6 +56,7 @@ namespace Omamagoto.Events
                 case EventNames.Serve: OnServe?.Invoke(e); break;
                 case EventNames.Reset: OnReset?.Invoke(e); break;
                 case EventNames.Status: OnStatus?.Invoke(e); break;
+                case EventNames.Door: OnDoor?.Invoke(e); break;
                 default: break; // 知らない種類は無視する（サーバーが新しい種類を足しても止まらないように）
             }
         }

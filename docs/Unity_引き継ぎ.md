@@ -2,7 +2,7 @@
 
 この PC の Claude には、これまでの相談の履歴がない。ここまでに決まったこと・リポジトリの今・これからやることを、この 1 ファイルにまとめた。
 作成：2026-11-06（Mac の Claude が、ここまでの相談をもとに書いた）
-更新：2026-11-10（Unity を作る PC の Claude が、0 章「今どこまでできたか」を足した）
+更新：2026-11-17（Unity を作る PC の Claude。0.5 に電子レンジの扉を足した）
 
 最初にこのファイルと `docs/作業記録_Unity.md` を全部読み、「作業のルール」を守って進めること。
 **今の状態は 0 章**、くわしい経緯は作業記録（新しいものが上）、Unity の動かし方は `unity/README.md`。
@@ -51,9 +51,10 @@
 | `fire` | 青い炎・炎の光。**画面のつまみが火の強さの所まで回る**。フライパンが温まり、ピースが焼けて色が変わる（強火のままだとこげる）。湯気・ピースが跳ねる | `GasBurnerView`・`PanView`・`CookablePiece` |
 | `season` | 塩・こしょうの入れ物がフライパンの上へ飛んで、さかさまに振る。粒が落ちてピースにのる | `ShakerView`・`KitchenParticles` |
 | `serve` | フライパンの中身が皿に移る | `PanView` |
+| `door`（仮。2026-11-17） | 電子レンジの扉が、届いた角度（`angle`）まで開く・閉まる | `MicrowaveDoorView` |
 | `reset` | 全部はじめに戻る | 全部 |
 
-テスト：EditMode 29 個・PlayMode 43 個（Test Runner で全部通る。2026-11-10）。
+テスト：EditMode 30 個・PlayMode 48 個（Test Runner で全部通る。2026-11-17）。
 
 ### 0.4 まだのこと・わかっている弱いところ
 
@@ -68,8 +69,11 @@
 
 ### 0.5 次にやること（ユーザーに聞いてから）
 
+0. （2026-11-17）電子レンジ：カメラで扉の角度を見て、Unity の扉も同じだけ開くところまでできた（`camera/door_watch.py`・`MicrowaveDoorView`。イベント `door` は仮で、要件定義書 6.4 にはまだない）。次は「にんじんを電子レンジに入れた」を本物で試して、Unity の演出を作る。Claude Code から Unity を操作できる（UnityMCP）。くわしくは作業記録の 11-17
 1. 天板・まな板・皿などを、写真から作った CC0 の素材でリアルにする（続き）
 2. 5.5 お客さんの画面
+
+カメラの見える範囲を確かめる道具 `camera/two_cameras.py` も作った（カメラ担当のフォルダーだが、ユーザーに頼まれた）。実物の台は奥行き 340 mm で、設計図（550 mm）とちがう。
 
 ### 0.6 続きを作る AI へ（つまずいた所）
 
@@ -80,6 +84,7 @@
 - Test Runner で PlayMode のテストを流すと、Project Settings の Enter Play Mode Options が変わることがある。流したあとに戻す（オフ）。`Run In Background` はオンのまま
 - 写真の素材のざらつきの画像は、`unity/tools/rough_to_mask.py` で Unity の mask にする。炎・湯気・網目などの自作の画像は `unity/tools/make_textures.py`
 - 素材を足したら、`unity/Assets/CREDITS.md` に出どころを書く（CC0 か自作だけ）
+- 学校のネットワークでは Git が SSL のエラーで GitHub につながらない → `git config --global http.sslBackend schannel`。uv / uvx は `UV_NATIVE_TLS=true`
 
 ---
 

@@ -73,6 +73,14 @@ namespace Omamagoto.Events
         /// <summary>ひとこと。"good" "too_salty" "undercooked" など</summary>
         [JsonProperty("comment")] public string Comment;
 
+        // ---- 電子レンジの扉（door） ----
+
+        /// <summary>扉が開いているか。true = 開いた、false = 閉まった</summary>
+        [JsonProperty("open")] public bool? Open;
+
+        /// <summary>扉の角度（度。0 = 閉まっている）。届いたら、open より優先してこの角度まで開く</summary>
+        [JsonProperty("angle")] public float? Angle;
+
         // ---- デバイスの状態（status） ----
 
         [JsonProperty("devices")] public DeviceStatus[] Devices;
@@ -109,5 +117,11 @@ namespace Omamagoto.Events
         public const string Serve = "serve";
         public const string Reset = "reset";
         public const string Status = "status";
+
+        /// <summary>
+        /// 電子レンジの扉が開いた・閉まった（{"event":"door","open":true}）。
+        /// 2026-11-17 に試しで足した。要件定義書 6.4 にはまだない（変更案としてユーザーに出す）
+        /// </summary>
+        public const string Door = "door";
     }
 }

@@ -24,3 +24,6 @@ screen/dishes/*_raw.png
 # 展示で作った料理の写真
 screen/generated/
 screen/dish_test.log
+
+# カメラの道具が確認用に保存した映像（git に入れない）
+camera/captures/

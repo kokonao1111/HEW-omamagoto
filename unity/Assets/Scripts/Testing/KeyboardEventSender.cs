@@ -15,6 +15,7 @@ namespace Omamagoto.Testing
     ///   S / P   塩 / こしょうを振る（season。0.5 g ずつ）
     ///   0〜3    火の強さ（fire。0=切、1=弱、2=中、3=強）
     ///   Enter   提供（serve）
+    ///   M       電子レンジの扉を開ける / 閉める（door）
     ///   R       リセット（サーバーにつながっていれば、サーバーに頼む）
     ///   D       デモを始める / 止める
     /// </summary>
@@ -33,6 +34,7 @@ namespace Omamagoto.Testing
         int piecesOnBoard = 1;    // まな板の上に残っているピースの数
         float saltTotalGrams;
         float pepperTotalGrams;
+        bool doorOpen;
 
         void Awake()
         {
@@ -48,6 +50,7 @@ namespace Omamagoto.Testing
             router.OnAdd += RememberAdd;
             router.OnSeason += RememberSeason;
             router.OnReset += RememberReset;
+            router.OnDoor += RememberDoor;
         }
 
         void OnDisable()
@@ -56,6 +59,7 @@ namespace Omamagoto.Testing
             router.OnAdd -= RememberAdd;
             router.OnSeason -= RememberSeason;
             router.OnReset -= RememberReset;
+            router.OnDoor -= RememberDoor;
         }
 
         void Update()
@@ -86,6 +90,8 @@ namespace Omamagoto.Testing
                 StopDemo();
                 sender.Serve(80, "good");
             }
+
+            if (keyboard.mKey.wasPressedThisFrame) { StopDemo(); sender.Door(!doorOpen); }
 
             if (keyboard.rKey.wasPressedThisFrame)
             {
@@ -120,12 +126,18 @@ namespace Omamagoto.Testing
             if (e.Item == "pepper") pepperTotalGrams = e.TotalGrams.Value;
         }
 
+        void RememberDoor(ScreenEvent e)
+        {
+            if (e.Open != null) doorOpen = e.Open.Value;
+        }
+
         void RememberReset(ScreenEvent e)
         {
             pieceCount = 1;
             piecesOnBoard = 1;
             saltTotalGrams = 0;
             pepperTotalGrams = 0;
+            doorOpen = false;
         }
     }
 }

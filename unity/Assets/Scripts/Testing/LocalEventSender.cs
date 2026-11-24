@@ -62,6 +62,18 @@ namespace Omamagoto.Testing
             Send(new ScreenEvent { Type = EventNames.Serve, Score = score, Comment = comment });
         }
 
+        /// <summary>電子レンジの扉が開いた（true）・閉まった（false）</summary>
+        public void Door(bool open)
+        {
+            Send(new ScreenEvent { Type = EventNames.Door, Open = open });
+        }
+
+        /// <summary>電子レンジの扉の角度（度。0 = 閉まっている）</summary>
+        public void DoorAngle(float degrees)
+        {
+            Send(new ScreenEvent { Type = EventNames.Door, Open = degrees > 5, Angle = degrees });
+        }
+
         public void Reset()
         {
             Send(new ScreenEvent { Type = EventNames.Reset });

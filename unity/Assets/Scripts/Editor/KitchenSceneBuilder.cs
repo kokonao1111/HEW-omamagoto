@@ -17,7 +17,7 @@ namespace Omamagoto.Editor
     ///   KitchenToolBuilder（まな板・皿・フライパン・塩こしょう）、KitchenLightingSetup（カメラ・光・空・描画）、
     ///   KitchenMaterials（色・つや）
     ///
-    /// 再生中に動くもの（炎・フライパン・塩こしょう・包丁・にんじん）には、ここで動かすスクリプトを付ける
+    /// 再生中に動くもの（電子レンジの扉・炎・フライパン・塩こしょう・包丁・にんじん）には、ここで動かすスクリプトを付ける
     /// </summary>
     public static class KitchenSceneBuilder
     {
@@ -40,9 +40,10 @@ namespace Omamagoto.Editor
             KitchenRoomBuilder.Build(Group(root, "Room"));
             var appliances = Group(root, "Appliances");
             var stove = KitchenStoveBuilder.Build(appliances);
-            KitchenMicrowaveBuilder.Build(appliances);
+            var microwaveDoor = KitchenMicrowaveBuilder.Build(appliances);
             var tools = KitchenToolBuilder.Build(Group(root, "Tools"));
 
+            AddMicrowaveDoor(microwaveDoor, router);
             var burner = AddBurner(stove, router);
             var pan = AddPan(tools.Pan, burner, router);
             AddShaker(tools.SaltShaker, "salt", KitchenMaterials.SaltGrain, sideOffset: -0.02f, router);
@@ -58,6 +59,13 @@ namespace Omamagoto.Editor
             EditorSceneManager.MarkSceneDirty(root.gameObject.scene);
             Selection.activeGameObject = root.gameObject;
             Debug.Log("[キッチン] 作り直しました。シーンを保存してください");
+        }
+
+        /// <summary>電子レンジの扉（door で開く・閉まる）</summary>
+        static void AddMicrowaveDoor(Transform door, EventRouter router)
+        {
+            var view = door.gameObject.AddComponent<MicrowaveDoorView>();
+            SetFields(view, ("router", router));
         }
 
         /// <summary>右のバーナーの炎（再生したときに GasBurnerView が炎を作る）と、右のつまみ</summary>
