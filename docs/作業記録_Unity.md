@@ -22,6 +22,26 @@ Unity を作る PC の Claude が、やったことを書く。新しいもの�
 
 ## 記録
 
+### 2026-11-24 3D モデル（GLB）の置き場所を作った・Mac で Unity を使えるようにした
+
+- きっかけ：ユーザーから「GLB ファイルを保管する場所を作って」「ほかのチームの AI にもわかるように README に残して」。その前に、この Mac（Apple シリコン）で Unity と UnityMCP を使えるようにした
+- やったこと（GLB の置き場所）：
+  - `unity/Packages/manifest.json` に **glTFast（`com.unity.cloud.gltfast` 6.21.0。Unity 公式の GLB の読み込み）** を足した。`packages-lock.json` は glTFast と依存の深さ（depth）だけが変わった（ほかのパッケージの版は変わっていない）
+  - `unity/Assets/Art/Models/` を作り、`README.md` に置き方（`Food/`・`Utensils/`・`Kitchen/`・`Characters/`）、決まり（`.glb` 1 つにまとめる・1 = 1 m・上 +Y・正面 +Z・原点は底面の中心・テクスチャ 2048 px まで）、足すときの手順（ライセンス → 置く → `CREDITS.md` → Unity で確かめる）を書いた
+  - `unity/README.md` に「3D モデル（GLB）の置き場所」と、入っている道具に glTFast を足した。この引き継ぎの 0.6 にも 1 行足した
+- やったこと（この Mac の環境）：
+  - Unity 6000.3.28f1（Apple シリコン）を Unity Hub のコマンドで入れた。Windows Build Support (IL2CPP) は Windows でしか入らないので入れていない
+  - `git lfs install`、`main` を pull（LFS のファイル 22 個）
+  - Claude Code に `UnityMCP` を user の登録で足した（Windows と同じ：`uvx --from mcpforunityserver==10.3.0 mcp-for-unity --transport stdio`、`UV_NATIVE_TLS=true`）。Unity 側は MCP for Unity の画面（Cmd+Shift+M）で Transport を stdio にして Start Session。はじめはセットアップ画面が HTTP（127.0.0.1:8080）で登録していたが、この Mac では 8080 番をほかのプロジェクトの Docker が使っていたのでつながらなかった
+- 確かめたこと：
+  - glTFast を入れたあと、Console の赤いエラーは 0 件
+  - 確認用に 10 cm の箱の GLB を `Art/Models/` に置くと、glTFast の Importer（ScriptedImporter）で読み込まれ、メッシュ・マテリアルができ、大きさ 0.1 m・底が y = 0 だった。確認のあと消した（git には入れていない）
+  - UnityMCP：`claude mcp list` で Connected。Unity のログに `StdioBridgeHost started on port 6400`。新しく立ち上げた Claude Code から、シーンを読む・`SampleScene` を開くことができた
+- まだ確かめていないこと・困っていること：
+  - 本物の GLB（食材・道具）はまだ 1 つも入れていない。今のキッチン・道具・にんじん（仮）はスクリプトで作った形のまま。GLB に置き換えるかは決まっていない
+  - Unity のパッケージ解決は、Unity のウィンドウを触らないと始まらないことがあった（MCP から読み込み直しをさせると進んだ）
+- 次にやること：使う GLB（CC0 か自作）を決めて `Art/Models/` に入れる。入れたら `CREDITS.md` に書く
+
 ### 2026-11-17 電子レンジの扉：カメラで扉の角度を見て、Unity の扉も同じだけ開くようにした（試し）
 
 - きっかけ：ユーザーから「電子レンジを開けたら画面の電子レンジも開く、締めたら閉まるをやりたい」「中途半端に開けたら中途半端に開くように、リアルに」「素早く閉めても認識してほしい」「120% まで見て」「にんじんを電子レンジに入れたか見たい」「カメラはアームで何回も付け外しするので、多少動いても使えるように（テープで固定はできない）」
