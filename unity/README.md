@@ -64,6 +64,7 @@
 | 0〜3 | 火の強さ（fire） |
 | Enter | 提供（serve。テスト用に 80 点） |
 | M | 電子レンジの扉を開ける / 閉める（door） |
+| V | コンロの上にピーマンとブロッコリーを出す / 消す（items。カメラなしで試す用） |
 | R | リセット（サーバーにつながっていれば、サーバーに頼む） |
 | D | デモを始める / 止める |
 | F1 | 左上の「届いたイベント」の表示を出す / 消す |
@@ -81,7 +82,8 @@ router.OnCut += e => Debug.Log($"ピースが {e.Count} 個になった");
 ## キッチンの画面
 
 - メニュー「**Omamagoto → キッチンを作り直す**」で、シーンの `Kitchen` を作り直す（中は全部消えて作り直される）。作り直したらシーンを保存する
-- 配置は現実のキッチン台と同じ（`Assets/Scripts/Kitchen/KitchenLayout.cs`。数字は `tools/kitchen_plan.py` の `P` と同じ。`P` を変えたら、ここも直して作り直す）
+- 配置は現実のキッチン台と同じ（`Assets/Scripts/Kitchen/KitchenLayout.cs`）。2026-11-24 に、作っている**実物の台（横 900 × 奥行き 340 mm。左に電子レンジ、右にコンロ 1 口、真ん中にまな板）**に合わせた。`tools/kitchen_plan.py` の `P`（横 1050 × 奥行き 550）とはちがう数字になっている
+- 今は、まな板とにんじんをかくしている（`KitchenSceneBuilder.HideBoardAndCarrot`。false にして作り直すと出る）
 - 座標：Unity の 1 = 1 m。台の左手前・天板の上面が原点。x は右、y は上、z は奥
 - 雰囲気は「**明るい家のキッチン**」：白い人工大理石の天板、昔ながらの 10 cm 角の白いタイル（ambientCG の写真素材）、白い引き出し、ステンレス、つまみ式のガステーブル、窓からの昼の光。天板と壁は、遊ぶ範囲より左右に長くのばしてある
 - 本物らしさは「形（角の丸み `RoundedBoxMesh`、曲がった棒 `SweepMesh`、ろくろの形 `LatheMesh`）・素材（つや・凹凸・クリアコート・ガラス）・光（HDRI・映り込み・物のすき間の影 SSAO・やわらかい影）」で出している
@@ -118,6 +120,7 @@ router.OnCut += e => Debug.Log($"ピースが {e.Count} 個になった");
 | `Assets/Scripts/Kitchen/PanView.cs` | フライパンと皿（ピースを受け取る・焼く・湯気・跳ねる・皿へ移す） |
 | `Assets/Scripts/Kitchen/GasBurnerView.cs` | ガスコンロの右のバーナー（炎・炎の光・つまみを回す） |
 | `Assets/Scripts/Kitchen/MicrowaveDoorView.cs` | 電子レンジの扉（door の角度まで開く・閉まる） |
+| `Assets/Scripts/Kitchen/StoveItemsView.cs` | カメラで見たピーマン・ブロッコリー（items）を、仮の形でコンロのあたりに出す。フライパンに入ると底まで落ちる |
 | `Assets/Scripts/Kitchen/ShakerView.cs` | 塩・こしょうの入れ物（飛んでいって振る・粒） |
 | `Assets/Scripts/Kitchen/CookablePiece.cs` | 焼ける食材のピース（焼け具合で色とつやが変わる。どの野菜にも付けられる） |
 | `Assets/Scripts/Kitchen/Flight.cs` | 物を山なりに飛ばして置く |
