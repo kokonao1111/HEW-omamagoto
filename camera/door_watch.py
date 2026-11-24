@@ -42,7 +42,11 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from PIL import Image, ImageDraw
+
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import util  # noqa: E402
+from alignment import CameraAlignment, transform_points  # noqa: E402
 from util import draw_lines  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -56,8 +60,12 @@ LEFT_SCORE = 0.3  # 閉めた扉の所が、これだけ変わっていたら「
 BAND_OFFSETS = (-4, 0, 4)  # 線を 1 本でなく、横に少しずらした 3 本の帯で見る（少しずれていても拾えるように）
 MISS_DIR = ROOT / "camera" / "captures" / "door_miss"  # 扉が見つからなかったときの映像（原因を調べる用）
 MAX_MISS_IMAGES = 10
+SNAPSHOT_PATH = ROOT / "camera" / "captures" / "door_view.jpg"  # 今の画面（1 秒ごとに上書き）
+DISPLAY_SCALE = 0.6  # 窓に出すときの大きさ（元の映像の何倍か）
 CLICK_NAMES = ["蝶番（扉の回る軸）", "閉めた扉の先"]
 FOLLOW_SECONDS = 1.0  # これだけおきに、カメラのずれを計算し直す
+DARK_VALUE = 75  # テープの印：これより暗い所を「黒」とする（0〜255）
+DARK_MAX_SATURATION = 110  # テープの印：これより色がはっきりした所（赤い服など）は黒としない
 
 
 # ======================== 閉めたときとのちがい ========================
@@ -75,6 +83,40 @@ def changed_mask(frame, closed):
     return cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8)) > 0  # 小さなごみを消す
 
 
+def dark_mask(frame):
+    """黒いテープのような、暗くて色の薄い所を True にした画像（半分の大きさ）"""
+    small = cv2.resize(frame, None, fx=SCALE, fy=SCALE, interpolation=cv2.INTER_AREA)
+    hsv = cv2.cvtColor(small, cv2.COLOR_BGR2HSV)
+    mask = ((hsv[..., 2] < DARK_VALUE) & (hsv[..., 1] < DARK_MAX_SATURATION)).astype(np.uint8)
+    return cv2.morphologyEx(mask, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8)) > 0
+
+
+def find_tape(frame):
+    """扉の上の黒いテープ（黒くて細長い帯）を探して、両はしの点（元の大きさの画素）を返す。見つからなければ None。
+    床のように黒くても太くて丸っこい所は、細長くないので選ばない"""
+    mask = dark_mask(frame).astype(np.uint8)
+    count, labels, stats, _ = cv2.connectedComponentsWithStats(mask)
+    best, best_ratio = None, 0.0
+    for i in range(1, count):
+        if stats[i][4] < 200:
+            continue
+        ys, xs = np.nonzero(labels == i)
+        points = np.stack([xs, ys], axis=1).astype(np.float32)
+        center = points.mean(axis=0)
+        eigenvalues, eigenvectors = np.linalg.eigh(np.cov((points - center).T))
+        length, width = 4 * math.sqrt(max(eigenvalues[1], 1e-6)), 4 * math.sqrt(max(eigenvalues[0], 1e-6))
+        if length < 100 or width > 30:
+            continue  # 短すぎる・太すぎる（テープではない）
+        if length / width > best_ratio:
+            axis = eigenvectors[:, 1]
+            along = (points - center) @ axis
+            best = (center + axis * along.min(), center + axis * along.max())
+            best_ratio = length / width
+    if best is None:
+        return None
+    return [list(map(float, end / SCALE)) for end in best]
+
+
 def rotate(direction, degrees):
     """向きを、画像の上で degrees 度回す（時計回りが +）"""
     angle = math.radians(degrees)
@@ -87,60 +129,6 @@ def signed_angle(from_dir, to_dir):
     return math.degrees(math.atan2(from_dir[0] * to_dir[1] - from_dir[1] * to_dir[0], from_dir @ to_dir))
 
 
-# ======================== カメラのずれを合わせる ========================
-class CameraAlignment:
-    """覚えた映像（閉めたとき）と今の映像の、目印になる点（台の木目・角など）を見比べて、カメラのずれを計算する。
-    アームでカメラを付け外ししても、だいたい同じ所を写していれば、蝶番の位置などを自動でずらして使える。
-    電子レンジは台に作り付け（台の上で動かない）とする。電子レンジを動かしたときは、c・h・o をやり直す"""
-
-    MIN_MATCHES = 40  # これだけの点が合えば、ずれを信じる（扉が閉まっていれば、ふつう 100 点以上合う）
-
-    def __init__(self):
-        self.orb = cv2.ORB_create(nfeatures=3000)
-        self.matcher = cv2.BFMatcher(cv2.NORM_HAMMING)
-        self.reference = None  # (点, 特徴)
-        self.matches = 0  # 最後に合った点の数（画面に出す）
-
-    def set_reference(self, frame):
-        self.reference = self.orb.detectAndCompute(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), None)
-
-    def find(self, frame):
-        """覚えた映像 → 今の映像 への変換（3x3）を返す。見つからなければ None"""
-        if self.reference is None or self.reference[1] is None:
-            return None
-        keypoints, descriptors = self.orb.detectAndCompute(cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY), None)
-        if descriptors is None:
-            return None
-        pairs = self.matcher.knnMatch(self.reference[1], descriptors, k=2)
-        good = [p[0] for p in pairs if len(p) == 2 and p[0].distance < 0.75 * p[1].distance]  # はっきり似ているものだけ
-        if len(good) < self.MIN_MATCHES:
-            self.matches = len(good)
-            return None
-        source = np.float32([self.reference[0][m.queryIdx].pt for m in good])
-        target = np.float32([keypoints[m.trainIdx].pt for m in good])
-        # ずれは「回転・移動・大きさ」だけとして計算する（ゆがみまで入れると、点が少ないときに答えが不安定になる）。
-        # 扉や手など動いた所の点は外れ値として捨てる（RANSAC）
-        similarity, inliers = cv2.estimateAffinePartial2D(source, target, method=cv2.RANSAC, ransacReprojThreshold=4.0)
-        self.matches = int(inliers.sum()) if inliers is not None else 0
-        if similarity is None or self.matches < self.MIN_MATCHES:
-            return None
-        transform = np.vstack([similarity, [0, 0, 1]])
-        return transform if looks_reasonable(transform) else None
-
-
-def looks_reasonable(transform):
-    """ずれの計算がおかしくないか（大きさが 0.8〜1.25 倍、ゆがみが小さい）。まちがった合わせ方を捨てるため"""
-    scale = math.sqrt(abs(np.linalg.det(transform[:2, :2])))
-    skew = abs(transform[2, 0]) + abs(transform[2, 1])
-    return 0.8 < scale < 1.25 and skew < 0.001
-
-
-def transform_points(points, transform):
-    """点の並びを、3x3 の変換で動かす"""
-    moved = cv2.perspectiveTransform(np.float32(points).reshape(-1, 1, 2), transform).reshape(-1, 2)
-    return [[float(x), float(y)] for x, y in moved]
-
-
 # ======================== 扉の角度を測る ========================
 class DoorAngle:
     """閉めたときの映像と 3 点（蝶番・閉めた扉の先・開けた扉の先）から、1 枚ごとに扉の角度を測る。
@@ -149,7 +137,8 @@ class DoorAngle:
     カメラが動いたら、CameraAlignment でずれを計算して、3 点と閉めたときの映像を今の映像に合わせてずらす。
     """
 
-    def __init__(self, camera_number, open_degrees):
+    def __init__(self, camera_number, open_degrees, tape=False):
+        self.tape = tape  # 扉の上に黒いテープの印があるか（あれば、黒い所で扉を探す）
         self.path = CONFIG_DIR / f"door_cam{camera_number}.json"
         self.image_path = CONFIG_DIR / f"door_cam{camera_number}_closed.png"
         self.open_degrees = open_degrees  # いっぱいに開けたときの、本物の角度
@@ -227,6 +216,8 @@ class DoorAngle:
         valid = cv2.erode(valid, np.ones((9, 9), np.uint8))  # ふちは少し内側まで比べない
         self.aligned_closed = warped
         self.aligned_valid = cv2.resize(valid, None, fx=SCALE, fy=SCALE, interpolation=cv2.INTER_NEAREST) > 0
+        # 閉めたときにもう黒かった所（床など）。テープの印のときは、ここを扉としない。ずれが変わったときだけ計算する
+        self.was_black = cv2.dilate(dark_mask(warped).astype(np.uint8), np.ones((9, 9), np.uint8)) > 0
 
     def _refresh_reference(self):
         """覚えた映像が変わったら、目印を取り直す"""
@@ -235,7 +226,10 @@ class DoorAngle:
 
     # ---- 覚える ----
     def remember_closed(self, frame):
-        """閉めたときの映像を覚え直す。3 点はもう決めてあれば、カメラのずれの分だけずらして引きつぐ"""
+        """閉めたときの映像を覚え直す。3 点はもう決めてあれば、カメラのずれの分だけずらして引きつぐ。
+        テープの印のときは、テープを探して、そこから蝶番と扉の先を決め直す（カメラが大きく動いても c だけで直る）"""
+        if self.tape and self.relocate_from_tape(frame):
+            return
         if self.reference_points is not None:
             transform = self.alignment.find(frame)  # 扉は閉まっているので、開き具合に関係なくずれを計算する
             if transform is not None:
@@ -248,6 +242,47 @@ class DoorAngle:
         cv2.imwrite(str(self.image_path), frame)
         self.save()
 
+    def auto_relocate(self, frame, max_turn=20):
+        """起動したときなどに、自動で合わせ直す（テープの印のときだけ）。
+        テープが見つかり、その向きが「閉めた扉」の向きに近ければ（max_turn 度以内）、扉は閉まっているとみなして、テープから合わせ直す"""
+        if not self.tape or self.reference_points is None:
+            return False
+        ends = find_tape(frame)
+        if ends is None:
+            return False
+        old_hinge = np.array(self.points[0])
+        ends.sort(key=lambda end: np.linalg.norm(np.array(end) - old_hinge))
+        tape_dir = np.array(ends[1]) - np.array(ends[0])
+        if abs(signed_angle(self.closed_dir, tape_dir / np.linalg.norm(tape_dir))) > max_turn:
+            return False  # 扉が開いているか、テープではない物。合わせ直さない
+        return self.relocate_from_tape(frame)
+
+    def relocate_from_tape(self, frame):
+        """扉を閉めた映像からテープを探し、蝶番（テープの根もと）と閉めた扉の先を決め直す。
+        開く向きと大きさ（いっぱいに開けると画像の上で何度回るか）は、前に覚えたものを引きつぐ"""
+        ends = find_tape(frame)
+        if ends is None:
+            print("テープが見つかりません。扉を閉めて、手を外に出してから、もう一度")
+            return False
+        old_turn = self.full_turn if self.has_open else None
+        if self.reference_points is not None:
+            # 前の蝶番に近いほうのはしを、蝶番とする（カメラが動いても、根もとは根もとのがわにある）
+            old_hinge = np.array(self.points[0])
+            ends.sort(key=lambda end: np.linalg.norm(np.array(end) - old_hinge))
+        else:
+            ends.sort(key=lambda end: -end[1])  # はじめてなら、下のはしを蝶番とする
+        hinge, tip = np.array(ends[0]), np.array(ends[1])
+        open_tip = tip if old_turn is None else hinge + rotate((tip - hinge) / np.linalg.norm(tip - hinge), old_turn) * np.linalg.norm(tip - hinge)
+        self.reference_frame = frame.copy()
+        self.transform = np.eye(3)
+        self.reference_points = [hinge.tolist(), tip.tolist(), open_tip.tolist()]
+        self._refresh_reference()
+        self._warp_reference(frame.shape)
+        cv2.imwrite(str(self.image_path), frame)
+        self.save()
+        print(f"テープから合わせ直した：蝶番 {np.round(hinge)}、扉の先 {np.round(tip)}")
+        return True
+
     def set_points(self, hinge, closed_tip):
         """今の映像の上でクリックした 2 点（蝶番・閉めた扉の先）を覚える。開けた扉の先は、まだ仮（o で決める）"""
         points = [hinge, closed_tip, closed_tip]
@@ -259,7 +294,7 @@ class DoorAngle:
         """扉をいっぱいに開けた映像から、開けた扉の向きを決める（蝶番から、どちら回りにも探す）"""
         if self.reference_frame is None or self.reference_points is None:
             return False
-        mask = self.changed(frame)
+        mask, _ = self.door_mask(frame)
         turns = np.concatenate([np.arange(-150, -MIN_TURN + 1, 1.0), np.arange(MIN_TURN, 151, 1.0)])
         turn, score = self.door_direction(mask, turns)
         if turn is None or score < FOUND_SCORE:
@@ -279,10 +314,7 @@ class DoorAngle:
         """今の扉の開き具合（fraction）を測る。わかったら True を返す"""
         if not self.ready:
             return False
-        # ずらした「閉めた」がはみ出した所は、今の映像で埋める（そこは「変わっていない」ことにする）
-        closed = np.where(self.aligned_valid[..., None], prepare(self.aligned_closed), prepare(frame))
-        mask = self.changed(frame)
-        left = self.changed_along(mask, 0)  # 閉めた扉の所が変わったか
+        mask, left = self.door_mask(frame)
         sign = 1 if self.full_turn >= 0 else -1
         turns = np.arange(MIN_TURN, abs(self.full_turn) * MAX_FRACTION + 1, 1.0) * sign
         best_turn, best_score = self.door_direction(mask, turns)
@@ -296,6 +328,16 @@ class DoorAngle:
             return True
         return False  # はっきりしない（手でかくれている など）。前の値のままにする
 
+    def door_mask(self, frame):
+        """扉を探すための画像（扉がありそうな所が True）と、「扉が閉めた所からどいたか」の割合（0〜1）を返す。
+        テープの印のとき：新しく黒くなった所（閉めたときは黒くなかった所）を探す。閉めた所にテープが見えていれば、どいていない
+        印がないとき：閉めたときから変わった所を探す"""
+        if self.tape:
+            black = dark_mask(frame)
+            return black & ~self.was_black, 1.0 - self.changed_along(black, 0)
+        mask = self.changed(frame)
+        return mask, self.changed_along(mask, 0)
+
     def changed(self, frame):
         """閉めたときから変わった所。ずらした「閉めた」がはみ出した所は、今の映像で埋める（変わっていないことにする）"""
         closed = np.where(self.aligned_valid[..., None], prepare(self.aligned_closed), prepare(frame))
@@ -305,7 +347,7 @@ class DoorAngle:
         """角度の候補 turns（度）の中で、扉のある向きを探す。(向き, 点数) を返す。
         斜めから見ると扉は太い帯に見え、いくつもの向きが同じくらい高い点数になるので、
         いちばん高い点数のまわりで、高い点数が続いている範囲の「真ん中」を扉の向きにする"""
-        scores = np.array([self.changed_along(mask, turn) for turn in turns])
+        scores = self.changed_along_many(mask, turns)
         if len(scores) == 0 or scores.max() <= 0:
             return None, 0.0
         best = int(scores.argmax())
@@ -320,24 +362,31 @@ class DoorAngle:
 
     def changed_along(self, mask, turn_degrees):
         """閉めた向きから turn_degrees 回した向きに、蝶番から帯を引き、その上の「変わった」の割合を返す"""
+        return float(self.changed_along_many(mask, [turn_degrees])[0])
+
+    def changed_along_many(self, mask, turns):
+        """changed_along を、たくさんの向き（turns、度）でまとめて計算する（1 つずつ計算すると遅いため）"""
         height, width = mask.shape
-        direction = rotate(self.closed_dir, turn_degrees)
-        side = np.array([-direction[1], direction[0]])  # 帯の横の向き
-        distances = np.linspace(0.25, 0.9, 25) * self.length  # 蝶番の近くは、ほかの物とまざりやすいので使わない
-        hits = np.zeros(len(distances), bool)
-        seen = np.zeros(len(distances), bool)
-        for offset in BAND_OFFSETS:
-            points = (self.hinge + side * offset + np.outer(distances, direction)).astype(int)
-            inside = (points[:, 0] >= 0) & (points[:, 0] < width) & (points[:, 1] >= 0) & (points[:, 1] < height)
-            # 閉めたときの映像が届いていない所（カメラがずれて、はみ出した所）は、数えない
-            inside[inside] = self.aligned_valid[points[inside, 1], points[inside, 0]]
-            hit = np.zeros(len(distances), bool)
-            hit[inside] = mask[points[inside, 1], points[inside, 0]]
-            hits |= hit  # 3 本のどれかが変わっていれば、その距離は変わったとみなす
-            seen |= inside
-        if seen.sum() < 5:
-            return 0.0  # ほとんど映像の外
-        return float(hits[seen].mean())
+        hinge, closed_dir, length = self.hinge, self.closed_dir, self.length
+        angles = np.radians(np.asarray(turns, float))
+        cos, sin = np.cos(angles), np.sin(angles)
+        directions = np.stack([closed_dir[0] * cos - closed_dir[1] * sin, closed_dir[0] * sin + closed_dir[1] * cos], axis=1)  # (向き, 2)
+        sides = np.stack([-directions[:, 1], directions[:, 0]], axis=1)  # 帯の横の向き
+        distances = np.linspace(0.25, 0.9, 25) * length  # 蝶番の近くは、ほかの物とまざりやすいので使わない
+        offsets = np.array(BAND_OFFSETS, float)
+        # 点の位置：(向き, 帯の 3 本, 距離, xy)
+        points = (hinge[None, None, None, :]
+                  + sides[:, None, None, :] * offsets[None, :, None, None]
+                  + directions[:, None, None, :] * distances[None, None, :, None]).astype(int)
+        x, y = points[..., 0], points[..., 1]
+        inside = (x >= 0) & (x < width) & (y >= 0) & (y < height)
+        x, y = np.clip(x, 0, width - 1), np.clip(y, 0, height - 1)
+        inside &= self.aligned_valid[y, x]  # 閉めたときの映像が届いていない所（はみ出した所）は数えない
+        hits = (mask[y, x] & inside).any(axis=1)  # 3 本のどれかが当たれば、その距離は当たったとみなす
+        seen = inside.any(axis=1)
+        counts = seen.sum(axis=1)
+        scores = np.where(counts >= 5, hits.sum(axis=1) / np.maximum(counts, 1), 0.0)  # ほとんど映像の外なら 0
+        return scores
 
     def in_door_area(self, point):
         """点（元の大きさの画像の画素）が、扉の入り口のあたり（扉が回る扇の形の中）にあるか"""
@@ -442,6 +491,41 @@ def find_carrot(detector, frame, min_conf=0.4):
     return max(vegetables, key=lambda d: d.conf, default=None)
 
 
+class CarrotWorker:
+    """学習モデルでにんじんを探すのを、別の作業（スレッド）でする。
+    学習モデルは重いので、扉の判定と同じ流れでやると、扉の動きが遅れる。こうすると扉の判定は止まらない。
+    submit() で新しい映像を渡し、result() でいちばん新しい結果をもらう（古い映像は飛ばす）"""
+
+    def __init__(self, detector):
+        self.detector = detector
+        self.frame = None
+        self.latest = (None, 0.0, 0)  # (にんじん, 調べた映像の時刻, 何回目の結果か)
+        self.lock = threading.Lock()
+        self.ready = threading.Event()
+        threading.Thread(target=self._run, daemon=True).start()
+
+    def submit(self, frame):
+        with self.lock:
+            self.frame = (frame, time.time())
+        self.ready.set()
+
+    def result(self):
+        with self.lock:
+            return self.latest
+
+    def _run(self):
+        count = 0
+        while True:
+            self.ready.wait()
+            with self.lock:
+                frame, taken = self.frame
+                self.ready.clear()
+            carrot = find_carrot(self.detector, frame)
+            count += 1
+            with self.lock:
+                self.latest = (carrot, taken, count)
+
+
 # ======================== Unity へ送る（サーバーの代わり） ========================
 class ScreenServer:
     """ws://<この PC>:<port>/screen を開いて、つないできた画面（Unity）にイベントを配る。
@@ -463,19 +547,43 @@ class ScreenServer:
         from websockets.asyncio.server import serve
 
         async with serve(self._handle, "0.0.0.0", self.port):
-            print(f"Unity を待っています: ws://localhost:{self.port}/screen")
+            print(f"Unity を待っています: ws://localhost:{self.port}/screen（ほかのカメラの道具は /camera）")
             await asyncio.Future()  # ずっと動かす
 
     async def _handle(self, connection):
+        if connection.request.path.startswith("/camera"):
+            await self._relay_camera(connection)
+            return
         self.screens.add(connection)
         print("画面がつながりました", connection.remote_address)
         await connection.send(self._message(self._door_body(self.door_angle)))  # 今の状態を伝える
+        from websockets.exceptions import ConnectionClosed
+
         try:
             async for text in connection:
                 await self._on_message(text)
+        except ConnectionClosed:
+            pass  # Unity の再生を止めると、あいさつなしで切れる。よくあることなので、エラーにしない
         finally:
             self.screens.discard(connection)
             print("画面が切れました")
+
+    async def _relay_camera(self, connection):
+        """ほかのカメラの道具（veg_watch.py など）から届いたイベントを、そのまま全部の画面に配る（本物のサーバーと同じ形）"""
+        from websockets.exceptions import ConnectionClosed
+
+        print("カメラの道具がつながりました", connection.remote_address)
+        try:
+            async for text in connection:
+                try:
+                    message = json.loads(text)
+                except json.JSONDecodeError:
+                    continue
+                body = {k: v for k, v in message.items() if k not in ("device", "ts", "seq", "cam")}  # 番号などは付け直す
+                await self._broadcast(body)
+        except ConnectionClosed:
+            pass
+        print("カメラの道具が切れました")
 
     async def _on_message(self, text):
         """画面から届いたもの。reset を頼まれたら、本物のサーバーと同じく全部の画面に reset を配る"""
@@ -530,6 +638,8 @@ def draw(frame, door, server, carrot, loading, clicks, clicking):
         cv2.rectangle(view, (int(carrot.x1), int(carrot.y1)), (int(carrot.x2), int(carrot.y2)), (0, 140, 255), 3)
     for point in clicks:
         cv2.circle(view, tuple(point), 8, (255, 0, 255), -1)
+    # 日本語の文字は、縮めた画面に描く（大きい画面に描くと遅く、扉の動きが Unity でカクカクする）
+    view = cv2.resize(view, None, fx=DISPLAY_SCALE, fy=DISPLAY_SCALE, interpolation=cv2.INTER_AREA)
     angle = "わからない" if door.degrees is None else f"{door.degrees:.0f} 度"
     follow = f"カメラのずれ：合わせた（目印 {door.alignment.matches} 点）" if door.aligned_ok else \
         f"カメラのずれ：合わせられない（目印 {door.alignment.matches} 点。前のずれのまま）"
@@ -541,7 +651,21 @@ def draw(frame, door, server, carrot, loading, clicks, clicking):
         next_step(door, clicks, clicking),
         "c: 閉めたを覚える  h: 蝶番と扉の先をクリック  o: 開けたを覚える  t: 送る確認  q: 終わる",
     ]
-    return draw_lines(view, lines, size=22)
+    return draw_text_lines(view, lines, size=16, gap=4)
+
+
+def draw_text_lines(img, lines, size, gap, x=10, y=8):
+    """複数行の日本語を、画像の変換 1 回でまとめて描く（1 行ずつ描くと、そのたびに画像を変換して遅い）"""
+    if util._FONT is None:
+        return draw_lines(img, lines, size=size, gap=gap)
+    pil = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+    canvas = ImageDraw.Draw(pil)
+    font = util._FONT.font_variant(size=size)
+    for i, line in enumerate(lines):
+        position = (x, y + i * (size + gap))
+        canvas.text((position[0] + 1, position[1] + 1), line, font=font, fill=(0, 0, 0))
+        canvas.text(position, line, font=font, fill=(255, 255, 255))
+    return cv2.cvtColor(np.array(pil), cv2.COLOR_RGB2BGR)
 
 
 def next_step(door, clicks, clicking):
@@ -554,6 +678,8 @@ def next_step(door, clicks, clicking):
         return "→ h を押して、蝶番 → 閉めた扉の先 をクリック"
     if not door.has_open:
         return "→ 扉をいっぱいに開けて、手を外に出して o"
+    if door.tape:
+        return "準備できた（赤い丸 = 蝶番、黄色の線 = 扉）。カメラを動かしたら、扉を閉めて c"
     return "準備できた：扉を開け閉めしてみて（赤い丸 = 蝶番、黄色の線 = 扉）"
 
 
@@ -603,19 +729,22 @@ def main():
     ap.add_argument("--open-degrees", type=float, default=90, help="いっぱいに開けたときの、本物の扉の角度（度）")
     ap.add_argument("--model", default=str(ROOT / "models" / "best.onnx"), help="にんじん（野菜）を見つける学習モデル")
     ap.add_argument("--no-carrot", action="store_true", help="にんじんを見ない（扉だけ）")
+    ap.add_argument("--tape", action="store_true", help="扉の上に黒いテープの印がある（黒い所で扉を探す。手や人の動きにまどわされにくい）")
     args = ap.parse_args()
 
     cap = open_camera(args.camera, args.width, args.height)
-    door = DoorAngle(args.camera, args.open_degrees)
+    door = DoorAngle(args.camera, args.open_degrees, tape=args.tape)
     server = ScreenServer(args.port)
     limiter = SendLimiter()
     misses = MissRecorder()
     loading = MicrowaveLoading()
     detector = None
     if not args.no_carrot:
-        from detect import Detector
+        from onnx_detect import OnnxDetector
 
-        detector = Detector(args.model, conf=0.4)
+        detector = OnnxDetector(args.model, conf=0.4)  # GPU（DirectML）があれば GPU で動く
+        print("学習モデル:", detector.device)
+        carrots = CarrotWorker(detector)
 
     window = f"door camera {args.camera}"
     cv2.namedWindow(window)
@@ -624,7 +753,7 @@ def main():
 
     def on_mouse(event, x, y, flags, _):
         if event == cv2.EVENT_LBUTTONDOWN and clicking["on"]:
-            clicks.append([x, y])
+            clicks.append([int(x / DISPLAY_SCALE), int(y / DISPLAY_SCALE)])  # 窓は縮めて出しているので、元の大きさに直す
             if len(clicks) == len(CLICK_NAMES):
                 door.set_points(clicks[0], clicks[1])
                 clicks.clear()
@@ -633,23 +762,45 @@ def main():
     cv2.setMouseCallback(window, on_mouse)
     smoothed = None
     last_follow = 0.0
+    last_snapshot = 0.0
+    carrot = None
+    last_result_number = 0
+    frame_count = 0
+    lost_since = None  # カメラのずれが合わなくなった時刻
 
     while True:
         ok, frame = cap.read()
         if not ok:
             continue
+        frame_count += 1
+        if frame_count == 15 and door.auto_relocate(frame):
+            print("起動したので、テープから自動で合わせ直した")  # カメラが落ち着くまで少し待ってから
         if time.time() - last_follow > FOLLOW_SECONDS:
             door.follow_camera(frame)  # カメラが動いていたら、蝶番などをずらして合わせる
             last_follow = time.time()
+            # 目印が 3 秒合わなければ、カメラが大きく動いたとみなし、テープから合わせ直す（扉が閉まっているときだけ）
+            lost_since = None if door.aligned_ok else (lost_since or time.time())
+            if lost_since and time.time() - lost_since > 3 and door.auto_relocate(frame):
+                print("カメラが大きく動いたので、テープから自動で合わせ直した")
+                lost_since = None
         if door.ready and not door.measure(frame):
             misses.record(frame, door)
         if door.degrees is not None:
             smoothed = door.degrees if smoothed is None else 0.3 * smoothed + 0.7 * door.degrees  # 少しだけなめらかにする
             if limiter.should_send(smoothed):
                 server.send_door(smoothed)
-        carrot = find_carrot(detector, frame)
-        loading.update(carrot, door, time.time())
-        cv2.imshow(window, draw(frame, door, server, carrot, loading, clicks, clicking["on"]))
+        if detector is not None:
+            carrots.submit(frame)
+            carrot, taken, result_number = carrots.result()
+            if result_number != last_result_number:  # 新しい結果が出たときだけ
+                loading.update(carrot, door, taken)
+                last_result_number = result_number
+        view = draw(frame, door, server, carrot, loading, clicks, clicking["on"])
+        cv2.imshow(window, view)
+        if time.time() - last_snapshot > 1.0:  # 今の画面を 1 秒ごとに保存（窓が見えないときに、あとから確かめる用）
+            SNAPSHOT_PATH.parent.mkdir(parents=True, exist_ok=True)
+            cv2.imwrite(str(SNAPSHOT_PATH), view)
+            last_snapshot = time.time()
 
         key = cv2.waitKey(1) & 0xFF
         if key in (ord("q"), 27):

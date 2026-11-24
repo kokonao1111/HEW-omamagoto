@@ -107,7 +107,10 @@ namespace Omamagoto.Kitchen
             var cookable = piece.GetComponent<CookablePiece>();
             if (cookable != null) inPan.Remove(cookable);
             Vector3 spot = RandomSpot(KitchenLayout.PlateCenter + Vector3.up * PlateFloorHeight, plateSpotRadius);
-            Flight.Begin(piece, spot, RandomYaw(piece.transform.rotation), seconds: 0.6f, arcHeight: 0.1f, delay: delay, onLanded: () =>
+            // 皿が遠いほど、ゆっくり高く飛ばす（2026-11-24 に実物の台に合わせて、皿がフライパンから約 65 cm はなれた）
+            float distance = Vector3.Distance(piece.transform.position, spot);
+            float seconds = 0.4f + distance * 0.8f, arcHeight = 0.08f + distance * 0.25f;
+            Flight.Begin(piece, spot, RandomYaw(piece.transform.rotation), seconds: seconds, arcHeight: arcHeight, delay: delay, onLanded: () =>
             {
                 if (cookable != null && !onPlate.Contains(cookable)) onPlate.Add(cookable);
             });

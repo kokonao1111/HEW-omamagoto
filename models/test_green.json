@@ -1,0 +1,8 @@
+{
+  "imgsz": 640,
+  "classes": [
+    "pepper",
+    "broccoli"
+  ],
+  "base": "yolov8n.pt"
+}

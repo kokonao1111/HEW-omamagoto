@@ -28,15 +28,17 @@ namespace Omamagoto.Tests
 
             var burnerObject = new GameObject("Burner");
             burnerObject.SetActive(false); // 欄に値を入れてから動かす
-            burnerObject.transform.position = KitchenLayout.BurnerCenter(right: true);
+            burnerObject.transform.position = KitchenLayout.BurnerCenter;
             burner = burnerObject.AddComponent<GasBurnerView>();
             knob = new GameObject("Knob").transform;
             TestFields.Set(burner, "router", router);
             TestFields.Set(burner, "knob", knob);
             burnerObject.SetActive(true);
 
-            salt = CreateShaker(router, "salt", new Vector3(0.445f, 0.012f, 0.385f));
-            pepper = CreateShaker(router, "pepper", new Vector3(0.535f, 0.012f, 0.385f));
+            // 調味料の置き場（まな板の奥）の上
+            Vector3 spice = KitchenLayout.ToWorld(KitchenLayout.SpiceX + KitchenLayout.SpiceWidth / 2, KitchenLayout.SpiceY + KitchenLayout.SpiceDepth / 2, 12);
+            salt = CreateShaker(router, "salt", spice + new Vector3(-0.045f, 0, 0));
+            pepper = CreateShaker(router, "pepper", spice + new Vector3(0.045f, 0, 0));
 
             // 粒が落ちて止まる所（フライパンの底の代わり）
             panFloor = GameObject.CreatePrimitive(PrimitiveType.Cube);

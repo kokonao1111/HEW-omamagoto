@@ -81,6 +81,11 @@ namespace Omamagoto.Events
         /// <summary>扉の角度（度。0 = 閉まっている）。届いたら、open より優先してこの角度まで開く</summary>
         [JsonProperty("angle")] public float? Angle;
 
+        // ---- 見えている物の一覧（items） ----
+
+        /// <summary>カメラに今見えている物の一覧（items）。zone の上の位置（0〜1）。空なら何も見えていない</summary>
+        [JsonProperty("items")] public SeenItem[] Items;
+
         // ---- デバイスの状態（status） ----
 
         [JsonProperty("devices")] public DeviceStatus[] Devices;
@@ -91,6 +96,19 @@ namespace Omamagoto.Events
             return JsonConvert.SerializeObject(this, Formatting.None,
                 new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore });
         }
+    }
+
+    /// <summary>items で届く、見えている物 1 つ</summary>
+    public class SeenItem
+    {
+        /// <summary>何の物か。"pepper" "broccoli" など</summary>
+        [JsonProperty("item")] public string Item;
+
+        /// <summary>位置 x（zone の範囲で 0〜1。右へ）</summary>
+        [JsonProperty("x")] public float X;
+
+        /// <summary>位置 y（zone の範囲で 0〜1。奥へ）</summary>
+        [JsonProperty("y")] public float Y;
     }
 
     /// <summary>status で届く、デバイス 1 台の状態</summary>
@@ -123,5 +141,11 @@ namespace Omamagoto.Events
         /// 2026-11-17 に試しで足した。要件定義書 6.4 にはまだない（変更案としてユーザーに出す）
         /// </summary>
         public const string Door = "door";
+
+        /// <summary>
+        /// カメラに今見えている物の一覧（{"event":"items","zone":"stove","items":[{"item":"pepper","x":0.3,"y":0.6}]}）。
+        /// 2026-11-24 に試しで足した（ピーマン・ブロッコリーをコンロの上に出す）。要件定義書 6.4 にはまだない
+        /// </summary>
+        public const string Items = "items";
     }
 }

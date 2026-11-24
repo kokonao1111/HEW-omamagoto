@@ -31,8 +31,9 @@ namespace Omamagoto.Editor
         static void SetUpCamera()
         {
             var camera = Camera.main;
-            Vector3 eye = KitchenLayout.ToWorld(525, -600, 640);
-            Vector3 lookAt = KitchenLayout.ToWorld(525, 420, 130);
+            // 台の真ん中の、手前の上から見下ろす（台の横幅・奥行きに合わせる。2026-11-24 に実物の 900 × 340 mm にした）
+            Vector3 eye = KitchenLayout.ToWorld(KitchenLayout.Width / 2, -720, 640);
+            Vector3 lookAt = KitchenLayout.ToWorld(KitchenLayout.Width / 2, KitchenLayout.Depth * 0.6f, 110);
             camera.transform.SetPositionAndRotation(eye, Quaternion.LookRotation(lookAt - eye));
             camera.fieldOfView = 38;
             camera.nearClipPlane = 0.01f;

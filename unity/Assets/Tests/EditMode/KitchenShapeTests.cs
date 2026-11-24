@@ -115,20 +115,40 @@ namespace Omamagoto.Tests
         [Test]
         public void まな板の座標を_現実と同じ位置に直す()
         {
-            // まな板は左手前の角が (90, 90) mm、幅 300 mm・奥行き 220 mm・厚さ 20 mm
-            AssertNear(new Vector3(0.090f, 0.020f, 0.090f), KitchenLayout.BoardToWorld(0, 0));
-            AssertNear(new Vector3(0.390f, 0.020f, 0.310f), KitchenLayout.BoardToWorld(1, 1));
-            AssertNear(new Vector3(0.240f, 0.020f, 0.200f), KitchenLayout.BoardCenter);
+            // まな板は左手前の角が (290, 10) mm、幅 300 mm・奥行き 220 mm・厚さ 20 mm（2026-11-24 の実物の台）
+            AssertNear(new Vector3(0.290f, 0.020f, 0.010f), KitchenLayout.BoardToWorld(0, 0));
+            AssertNear(new Vector3(0.590f, 0.020f, 0.230f), KitchenLayout.BoardToWorld(1, 1));
+            AssertNear(new Vector3(0.440f, 0.020f, 0.120f), KitchenLayout.BoardCenter);
         }
 
         [Test]
         public void コンロとフライパンの位置()
         {
-            // 右のバーナーはコンロの左端（600 mm）から 300 mm、奥行きの真ん中（60 + 150 mm）。ガステーブルの天板の上面は 90 mm
-            AssertNear(new Vector3(0.900f, 0.090f, 0.210f), KitchenLayout.BurnerCenter(right: true));
-            AssertNear(new Vector3(0.700f, 0.090f, 0.210f), KitchenLayout.BurnerCenter(right: false));
+            // バーナー（1 口）はコンロ（655 mm から横 230 mm）の真ん中、奥行きの真ん中（20 + 150 mm）。ガステーブルの天板の上面は 90 mm
+            AssertNear(new Vector3(0.770f, 0.090f, 0.170f), KitchenLayout.BurnerCenter);
             // フライパンは五徳の上（天板 ＋ 34 mm）。左右・奥行きは現実と同じ
-            AssertNear(new Vector3(0.900f, 0.124f, 0.210f), KitchenLayout.PanBottomCenter);
+            AssertNear(new Vector3(0.770f, 0.124f, 0.170f), KitchenLayout.PanBottomCenter);
+        }
+
+        [Test]
+        public void 台の上の物が_台からはみ出さず_重ならない()
+        {
+            // 実物の台（横 900・奥行き 340）の中に、電子レンジ・皿・まな板・調味料・コンロが重ならずに入っているか
+            var areas = new[]
+            {
+                new Rect(KitchenLayout.MicrowaveX, KitchenLayout.MicrowaveY, KitchenLayout.MicrowaveWidth, KitchenLayout.MicrowaveDepth),
+                new Rect(KitchenLayout.PlateX, KitchenLayout.PlateY, KitchenLayout.PlateWidth, KitchenLayout.PlateDepth),
+                new Rect(KitchenLayout.BoardX, KitchenLayout.BoardY, KitchenLayout.BoardWidth, KitchenLayout.BoardDepth),
+                new Rect(KitchenLayout.SpiceX, KitchenLayout.SpiceY, KitchenLayout.SpiceWidth, KitchenLayout.SpiceDepth),
+                new Rect(KitchenLayout.StoveX, KitchenLayout.StoveY, KitchenLayout.StoveWidth, KitchenLayout.StoveDepth),
+            };
+            for (int i = 0; i < areas.Length; i++)
+            {
+                // 台のふちにぴったり付いているのはよい（電子レンジは左はしの奥の角にぴったり）
+                bool inside = areas[i].xMin >= 0 && areas[i].yMin >= 0 && areas[i].xMax <= KitchenLayout.Width && areas[i].yMax <= KitchenLayout.Depth;
+                Assert.IsTrue(inside, $"{i} 番目が台からはみ出している");
+                for (int j = i + 1; j < areas.Length; j++) Assert.IsFalse(areas[i].Overlaps(areas[j]), $"{i} 番目と {j} 番目が重なっている");
+            }
         }
 
         [Test]

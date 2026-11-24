@@ -82,6 +82,11 @@ namespace Omamagoto.Editor
         public static Material CarrotCut => Plain("CarrotCut", new Color(1f, 0.55f, 0.15f), smoothness: 0.7f);
         public static Material CarrotLeaf => Plain("CarrotLeaf", new Color(0.3f, 0.54f, 0.2f), smoothness: 0.4f);
 
+        // 仮の野菜（カメラで見たピーマン・ブロッコリーをコンロの上に出す試し。本番の 3D モデルができたら入れかえる）
+        public static Material GreenPepper => Plain("GreenPepper", new Color(0.05f, 0.3f, 0.07f), smoothness: 0.8f);  // ピーマン：つやのある濃い緑（Pepper はこしょう）
+        public static Material Broccoli => Plain("Broccoli", new Color(0.2f, 0.48f, 0.15f), smoothness: 0.25f);  // つやのない緑
+        public static Material VegetableStem => Plain("VegetableStem", new Color(0.55f, 0.68f, 0.35f), smoothness: 0.35f);
+
         // ---------------- 作り方 ----------------
 
         /// <summary>色だけのマテリアル（URP の Lit）</summary>

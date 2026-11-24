@@ -39,7 +39,7 @@ namespace Omamagoto.Tests
 
             var burnerObject = new GameObject("Burner");
             burnerObject.SetActive(false); // 欄に値を入れてから動かす
-            burnerObject.transform.position = KitchenLayout.BurnerCenter(right: true);
+            burnerObject.transform.position = KitchenLayout.BurnerCenter;
             burner = burnerObject.AddComponent<GasBurnerView>();
             TestFields.Set(burner, "router", router);
             burnerObject.SetActive(true);

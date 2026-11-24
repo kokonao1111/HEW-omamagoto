@@ -50,6 +50,19 @@ namespace Omamagoto.Tests
         }
 
         [Test]
+        public void 見えている物の一覧を読める()
+        {
+            var e = Parse("{\"event\":\"items\",\"zone\":\"stove\",\"items\":[{\"item\":\"pepper\",\"x\":0.3,\"y\":0.6},{\"item\":\"broccoli\",\"x\":0.7,\"y\":0.4}]}");
+
+            Assert.AreEqual(EventNames.Items, e.Type);
+            Assert.AreEqual("stove", e.Zone);
+            Assert.AreEqual(2, e.Items.Length);
+            Assert.AreEqual("pepper", e.Items[0].Item);
+            Assert.AreEqual(0.3f, e.Items[0].X);
+            Assert.AreEqual(0.4f, e.Items[1].Y);
+        }
+
+        [Test]
         public void 届かなかった項目はnullになり_0とは区別できる()
         {
             var e = Parse("{\"event\":\"position\",\"item\":\"knife\",\"visible\":false}");

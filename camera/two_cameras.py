@@ -468,10 +468,10 @@ def fit_to_screen(img):
 def make_detector(args):
     if args.no_detect:
         return None
-    from detect import Detector
+    from onnx_detect import OnnxDetector
 
-    detector = Detector(args.model, args.conf)
-    print("認識のクラス:", list(detector.names.values()))
+    detector = OnnxDetector(args.model, args.conf)  # GPU（DirectML）があれば GPU で動く
+    print("認識のクラス:", list(detector.names.values()), "動かす所:", detector.device)
     return detector
 
 

@@ -74,6 +74,12 @@ namespace Omamagoto.Testing
             Send(new ScreenEvent { Type = EventNames.Door, Open = degrees > 5, Angle = degrees });
         }
 
+        /// <summary>カメラに今見えている物の一覧（zone は "stove" など）。空の配列なら、何も見えていない</summary>
+        public void Items(string zone, params SeenItem[] items)
+        {
+            Send(new ScreenEvent { Type = EventNames.Items, Zone = zone, Items = items });
+        }
+
         public void Reset()
         {
             Send(new ScreenEvent { Type = EventNames.Reset });

@@ -7,12 +7,13 @@ using static Omamagoto.Editor.KitchenBuildTools;
 namespace Omamagoto.Editor
 {
     /// <summary>
-    /// ガスコンロ：台に置く、昔ながらの箱型のガステーブル（2 口・つまみ式。2026-11-10 に決めた）。
+    /// ガスコンロ：台に置く、昔ながらの箱型のガステーブル（つまみ式。2026-11-10 に決めた）。
+    /// 2026-11-24：実物のコンロ（横 230 mm）に合わせて、1 口にした（魚焼きグリルは幅に入らないので、なし）。
     ///
     /// - 箱：アイボリーの塗装の鉄板。下にゴムの足
     /// - 天板：シルバーのホーロー。ふちが少し盛り上がる
-    /// - 前：ステンレスの板に、左右のつまみ（回すと火がつく）と、真ん中の魚焼きグリルの扉
-    /// - バーナーごとに：受け皿・バーナー（炎口つき）・点火プラグ・鋳物の五徳
+    /// - 前：ステンレスの板に、真ん中のつまみ（回すと火がつく）
+    /// - バーナー：受け皿・バーナー（炎口つき）・点火プラグ・鋳物の五徳
     ///
     /// フライパンは五徳の上にのる（底の高さは KitchenLayout.TrivetTopZ）
     /// </summary>
@@ -22,34 +23,20 @@ namespace Omamagoto.Editor
         const float FootHeight = 8;                        // 箱の下の、ゴムの足の高さ
         const float PanelFrontY = KitchenLayout.StoveY - 1; // 前の板の表面（現実の y。mm）
         const float KnobZ = 47;                            // つまみの真ん中の高さ
-        const float KnobFromSide = 42;                     // 箱の横から、つまみの真ん中まで
         static readonly Vector3 Up = new Vector3(0, 0, 1); // 現実の座標の「上」（z）
 
         /// <summary>作ったもののうち、再生中に動かすもの（炎を出す GasBurnerView を付ける所と、回すつまみ）</summary>
         public struct Result
         {
-            public Transform RightBurner;
-            public Transform RightKnob;
+            public Transform Burner;
+            public Transform Knob;
         }
 
         public static Result Build(Transform parent)
         {
             var stove = Group(parent, "GasStove");
             BuildBody(stove);
-            BuildGrill(stove);
-
-            var result = new Result();
-            foreach (bool right in new[] { false, true })
-            {
-                Transform burner = BuildBurner(stove, right);
-                Transform knob = BuildKnob(stove, right);
-                if (right)
-                {
-                    result.RightBurner = burner;
-                    result.RightKnob = knob;
-                }
-            }
-            return result;
+            return new Result { Burner = BuildBurner(stove), Knob = BuildKnob(stove) };
         }
 
         // ---------------- 箱と天板 ----------------
@@ -83,50 +70,20 @@ namespace Omamagoto.Editor
                 KitchenMaterials.Stainless);
         }
 
-        /// <summary>真ん中の魚焼きグリル：黒い扉・のぞき窓・クロムの取っ手と、天板のうしろの排気口</summary>
-        static void BuildGrill(Transform stove)
-        {
-            float cx = KitchenLayout.StoveX + KitchenLayout.StoveWidth / 2;
-
-            RoundedBox(stove, "GrillDoor", new Vector3(cx, PanelFrontY - 1.5f, 45), new Vector3(220, 3, 54), 2,
-                KitchenMaterials.GrillDoor);
-            RoundedBox(stove, "GrillWindow", new Vector3(cx, PanelFrontY - 3.1f, 38), new Vector3(130, 0.4f, 20), 2,
-                KitchenMaterials.GlassTop);
-
-            // 取っ手：扉から出て、横に走って、扉へ戻る棒
-            float front = PanelFrontY - 3, handleZ = 62;
-            Vector3[] handle = SweepMesh.Polyline(new[]
-            {
-                new Vector3(cx - 80, front, handleZ),
-                new Vector3(cx - 78, front - 12, handleZ),
-                new Vector3(cx + 78, front - 12, handleZ),
-                new Vector3(cx + 80, front, handleZ),
-            }, 5f, 8);
-            Sweep(stove, "GrillHandle", SweepMesh.RoundedRect(9, 6, 2.5f, 5), handle, Up, KitchenMaterials.Chrome);
-
-            // 排気口：天板のうしろの真ん中。ステンレスのふたに、細長いすき間
-            float ventY = KitchenLayout.StoveY + KitchenLayout.StoveDepth - 28;
-            RoundedBox(stove, "GrillVent", new Vector3(cx, ventY, Top + 2), new Vector3(110, 24, 4), 2, KitchenMaterials.Stainless);
-            Mesh slot = RoundedBoxMesh.Build(new Vector3(0.003f, 0.0006f, 0.016f), 0.0008f, 2);
-            var slots = new List<(Mesh, Matrix4x4)>();
-            for (int i = -4; i <= 4; i++) slots.Add((slot, At(new Vector3(i * 11.5f, 0, 0), Quaternion.identity)));
-            Combined(stove, "GrillVentSlots", new Vector3(cx, ventY, Top + 4.05f), KitchenMaterials.VentHole, slots);
-        }
-
         // ---------------- つまみ ----------------
 
         /// <summary>
         /// 前のつまみ（黒い樹脂・クロムの輪・縦の持ち手）と、まわりの印刷（消・強・中・弱の印）。
-        /// 返すのは、つまみを回すための入れ物（前の板の表面・つまみの真ん中。Z のまわりに回すと、前から見て左回り）
+        /// 返すのは、つまみを回すための入れ物（前の板の表面・つまみの真ん中。Z のまわりに回すと、前から見て左回り）。
+        /// 1 口なので、前の板の真ん中に 1 つ
         /// </summary>
-        static Transform BuildKnob(Transform stove, bool right)
+        static Transform BuildKnob(Transform stove)
         {
-            float x = right ? KitchenLayout.StoveX + KitchenLayout.StoveWidth - KnobFromSide : KitchenLayout.StoveX + KnobFromSide;
-            string side = right ? "Right" : "Left";
+            float x = KitchenLayout.StoveX + KitchenLayout.StoveWidth / 2;
 
-            BuildKnobPrint(stove, side, new Vector3(x, PanelFrontY, KnobZ));
+            BuildKnobPrint(stove, new Vector3(x, PanelFrontY, KnobZ));
 
-            var knob = Group(stove, "Knob" + side);
+            var knob = Group(stove, "Knob");
             knob.position = KitchenLayout.ToWorld(x, PanelFrontY, KnobZ);
 
             // ろくろの形は Y の向きに作るので、前（-Z）へ向ける
@@ -166,7 +123,7 @@ namespace Omamagoto.Editor
         }
 
         /// <summary>つまみのまわりの黒い印：真上が「消」（白抜きの輪）、左へ「強」「中」「弱」（だんだん小さい点）</summary>
-        static void BuildKnobPrint(Transform stove, string side, Vector3 centerMm)
+        static void BuildKnobPrint(Transform stove, Vector3 centerMm)
         {
             Mesh offRing = LatheMesh.Build(new[] { Part(Mm(2.6f, 0), Mm(2.6f, 0.3f), Mm(1.6f, 0.3f), Mm(1.6f, 0)) }, 24);
             float[] dotRadius = { 0, 1.6f, 2.3f, 3f }; // 弱・中・強
@@ -180,7 +137,7 @@ namespace Omamagoto.Editor
                     : LatheMesh.Build(new[] { Part(Mm(dotRadius[level], 0), Mm(dotRadius[level], 0.3f), Mm(0, 0.3f)) }, 24);
                 pieces.Add((mesh, At(offset, Quaternion.Euler(-90, 0, 0))));
             }
-            Combined(stove, "KnobPrint" + side, centerMm, KitchenMaterials.StovePrint, pieces);
+            Combined(stove, "KnobPrint", centerMm, KitchenMaterials.StovePrint, pieces);
         }
 
         /// <summary>入れ物の中に、メッシュを置く（位置と向きは入れ物から見た Unity の値）</summary>
@@ -197,11 +154,11 @@ namespace Omamagoto.Editor
         // ---------------- バーナー ----------------
 
         /// <summary>バーナー 1 口ぶん。まとめた入れ物（バーナーの真ん中・天板の上面）を返す</summary>
-        static Transform BuildBurner(Transform stove, bool right)
+        static Transform BuildBurner(Transform stove)
         {
-            Vector3 c = BurnerMm(right);
-            var burner = Group(stove, right ? "BurnerRight" : "BurnerLeft");
-            burner.position = KitchenLayout.BurnerCenter(right);
+            Vector3 c = BurnerMm();
+            var burner = Group(stove, "Burner");
+            burner.position = KitchenLayout.BurnerCenter;
             var onTop = new Vector3(c.x, c.y, Top);
 
             // 受け皿：ステンレス。外のふちを丸めて、真ん中へ向かって浅く下がる
@@ -304,10 +261,9 @@ namespace Omamagoto.Editor
         // ---------------- 小さな計算 ----------------
 
         /// <summary>バーナーの真ん中（現実の座標 mm。z は 0）</summary>
-        static Vector3 BurnerMm(bool right)
+        static Vector3 BurnerMm()
         {
-            float x = KitchenLayout.StoveX + (right ? KitchenLayout.RightBurnerX : KitchenLayout.LeftBurnerX);
-            return new Vector3(x, KitchenLayout.StoveY + KitchenLayout.StoveDepth / 2, 0);
+            return new Vector3(KitchenLayout.StoveX + KitchenLayout.BurnerX, KitchenLayout.StoveY + KitchenLayout.StoveDepth / 2, 0);
         }
 
         /// <summary>上から見て、角度 degrees（右が 0、奥が 90）の向きに radius 進んだ所（現実の座標 mm）</summary>

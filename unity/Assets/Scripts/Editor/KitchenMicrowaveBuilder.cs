@@ -21,9 +21,12 @@ namespace Omamagoto.Editor
         const float DoorThickness = 7;
         static readonly Vector3 Up = new Vector3(0, 0, 1); // 現実の座標の「上」（z）
 
-        // 扉と窓（電子レンジの左手前の下から、mm）
-        const float DoorLeft = 6, DoorRight = 274, DoorBottom = 52, DoorTop = 224;
-        const float WindowLeft = 22, WindowRight = 214, WindowBottom = 70, WindowTop = 206;
+        // 扉と窓（電子レンジの左手前の下から、mm）。右がわは、電子レンジの横幅に合わせる（2026-11-24 に 280 → 240 mm にした）
+        const float W = KitchenLayout.MicrowaveWidth;
+        const float DoorLeft = 6, DoorRight = W - 6, DoorBottom = 52, DoorTop = 224;
+        const float WindowLeft = 22, WindowRight = W - 66, WindowBottom = 70, WindowTop = 206;
+        const float HandleX = W - 30;  // 取っ手（扉の右はしの近く）
+        const float DialX = W - 42;    // ダイヤル（操作パネルの右）
 
         static Vector3 origin; // 電子レンジの左手前の下（現実の座標 mm）
 
@@ -59,7 +62,7 @@ namespace Omamagoto.Editor
         /// <summary>扉の奥の、庫内の入り口（扉を開けたときに見える、暗い四角）</summary>
         static void BuildInterior(Transform microwave)
         {
-            const float left = 16, right = 226, bottom = 62, top = 214;
+            const float left = 16, right = W - 54, bottom = 62, top = 214;
             RoundedBox(microwave, "Interior", P((left + right) / 2, -0.2f, (bottom + top) / 2), new Vector3(right - left, 0.4f, top - bottom), 3,
                 KitchenMaterials.MicrowaveCavity);
         }
@@ -131,7 +134,7 @@ namespace Omamagoto.Editor
         /// </summary>
         static void BuildHandle(Transform microwave)
         {
-            const float x = 250, bottom = 92, top = 186, reach = 19;
+            const float x = HandleX, bottom = 92, top = 186, reach = 19;
             float front = -DoorThickness;
             Vector3[] path = SweepMesh.Polyline(new[]
             {
@@ -160,10 +163,10 @@ namespace Omamagoto.Editor
             Vector2 size = KitchenMaterials.MicrowaveDisplaySize * 1000f;
             RoundedBox(microwave, "Display", P(56, -1.7f, rowZ), new Vector3(size.x, 0.3f, size.y), 0, KitchenMaterials.MicrowaveDisplay);
 
-            // ボタン：はしが丸い横長のボタンを 3 つ
+            // ボタン：はしが丸い横長のボタンを 3 つ（表示とダイヤルの間に入るように、詰めて並べる）
             for (int i = 0; i < 3; i++)
             {
-                RoundedBox(microwave, $"Button{i + 1}", P(116 + i * 34, -1.5f, rowZ), new Vector3(26, 5, 11), 5.4f, KitchenMaterials.ButtonLight);
+                RoundedBox(microwave, $"Button{i + 1}", P(108 + i * 29, -1.5f, rowZ), new Vector3(24, 5, 11), 5.4f, KitchenMaterials.ButtonLight);
             }
         }
 
@@ -173,7 +176,7 @@ namespace Omamagoto.Editor
             // ダイヤルは手前を向く。ろくろの形は上（+Y）に向けて作るので、入れ物ごと -90 度回す
             var dial = new GameObject("Dial").transform;
             dial.SetParent(microwave, false);
-            Vector3 center = P(238, 0, 30);
+            Vector3 center = P(DialX, 0, 30);
             dial.position = KitchenLayout.ToWorld(center.x, center.y, center.z);
             dial.rotation = Quaternion.Euler(-90, 0, 0);
 
@@ -218,7 +221,7 @@ namespace Omamagoto.Editor
             {
                 for (int row = 0; row < 11; row++)
                 {
-                    side.Add((sideSlot, At(new Vector3(0.1f, 100 + column * 22, 120 + row * 8), Quaternion.identity)));
+                    side.Add((sideSlot, At(new Vector3(0.1f, d - 100 + column * 22, 120 + row * 8), Quaternion.identity))); // 奥のほう
                 }
             }
             Combined(microwave, "SideVents", P(w, 0, 0), KitchenMaterials.VentHole, side);
@@ -226,7 +229,8 @@ namespace Omamagoto.Editor
             // 上の面：奥に 1 列
             Mesh topSlot = RoundedBoxMesh.Build(ToWorldSize(new Vector3(3.2f, 30, 0.6f)), 0.0003f, 2);
             var top = new List<(Mesh, Matrix4x4)>();
-            for (int i = 0; i < 21; i++) top.Add((topSlot, At(new Vector3(40 + i * 10, d - 40, 0.1f), Quaternion.identity)));
+            int topCount = (int)((w - 80) / 10) + 1; // 左右 40 mm ずつ空けて、10 mm おき
+            for (int i = 0; i < topCount; i++) top.Add((topSlot, At(new Vector3(40 + i * 10, d - 40, 0.1f), Quaternion.identity)));
             Combined(microwave, "TopVents", P(0, 0, h), KitchenMaterials.VentHole, top);
         }
 

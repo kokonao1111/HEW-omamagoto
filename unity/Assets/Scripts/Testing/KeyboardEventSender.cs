@@ -16,6 +16,7 @@ namespace Omamagoto.Testing
     ///   0〜3    火の強さ（fire。0=切、1=弱、2=中、3=強）
     ///   Enter   提供（serve）
     ///   M       電子レンジの扉を開ける / 閉める（door）
+    ///   V       コンロの上にピーマンとブロッコリーを出す / 消す（items。カメラなしで試す用）
     ///   R       リセット（サーバーにつながっていれば、サーバーに頼む）
     ///   D       デモを始める / 止める
     /// </summary>
@@ -35,6 +36,8 @@ namespace Omamagoto.Testing
         float saltTotalGrams;
         float pepperTotalGrams;
         bool doorOpen;
+        bool vegetablesOnStove;
+        float lastVegetablesSent;
 
         void Awake()
         {
@@ -92,6 +95,15 @@ namespace Omamagoto.Testing
             }
 
             if (keyboard.mKey.wasPressedThisFrame) { StopDemo(); sender.Door(!doorOpen); }
+            if (keyboard.vKey.wasPressedThisFrame) { StopDemo(); vegetablesOnStove = !vegetablesOnStove; }
+            if (vegetablesOnStove && Time.time - lastVegetablesSent > 0.25f)
+            {
+                // カメラのかわりに、ピーマンを左の口、ブロッコリーを右の口に置いたことにする（届かなくなると消えるので、送り続ける）
+                sender.Items("stove",
+                    new SeenItem { Item = "pepper", X = 0.25f, Y = 0.5f },
+                    new SeenItem { Item = "broccoli", X = 0.75f, Y = 0.5f });
+                lastVegetablesSent = Time.time;
+            }
 
             if (keyboard.rKey.wasPressedThisFrame)
             {

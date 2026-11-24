@@ -23,6 +23,21 @@ namespace Omamagoto.Editor
     {
         const string RootName = "Kitchen";
 
+        /// <summary>
+        /// まな板とにんじんをかくす（2026-11-24 ユーザーの希望。カメラで見たピーマン・ブロッコリーをコンロで試している間）。
+        /// false にして作り直すと、また出る
+        /// </summary>
+        const bool HideBoardAndCarrot = true;
+
+        /// <summary>名前で探して、かくす（消さないので、Hierarchy で ✓ を入れれば、すぐに出せる）</summary>
+        static void HideObjects(Transform root, params string[] names)
+        {
+            foreach (var child in root.GetComponentsInChildren<Transform>(true))
+            {
+                if (System.Array.IndexOf(names, child.name) >= 0) child.gameObject.SetActive(false);
+            }
+        }
+
         [MenuItem("Omamagoto/キッチンを作り直す")]
         public static void Build()
         {
@@ -52,6 +67,8 @@ namespace Omamagoto.Editor
             var items = Group(root, "Items");
             BuildKnife(items, router);
             BuildCarrot(items, router, pan);
+            BuildStoveItems(items, router);
+            if (HideBoardAndCarrot) HideObjects(root, "CuttingBoard", "Carrot");
 
             KitchenLightingSetup.Apply();
 
@@ -68,14 +85,14 @@ namespace Omamagoto.Editor
             SetFields(view, ("router", router));
         }
 
-        /// <summary>右のバーナーの炎（再生したときに GasBurnerView が炎を作る）と、右のつまみ</summary>
+        /// <summary>バーナーの炎（再生したときに GasBurnerView が炎を作る）と、つまみ</summary>
         static GasBurnerView AddBurner(KitchenStoveBuilder.Result stove, EventRouter router)
         {
-            var view = stove.RightBurner.gameObject.AddComponent<GasBurnerView>();
+            var view = stove.Burner.gameObject.AddComponent<GasBurnerView>();
             SetFields(view,
                 ("router", router),
                 ("flameMaterial", KitchenMaterials.GasFlame),
-                ("knob", stove.RightKnob));
+                ("knob", stove.Knob));
             return view;
         }
 
@@ -113,6 +130,19 @@ namespace Omamagoto.Editor
                 ("router", router),
                 ("bladeMaterial", KitchenMaterials.KnifeBlade),
                 ("handleMaterial", KitchenMaterials.KnifeHandle));
+        }
+
+        /// <summary>カメラで見た物（ピーマン・ブロッコリー）をコンロの上に出す（試し。形は仮）</summary>
+        static void BuildStoveItems(Transform parent, EventRouter router)
+        {
+            var stoveItems = new GameObject("StoveItems");
+            stoveItems.transform.SetParent(parent, false);
+            var view = stoveItems.AddComponent<StoveItemsView>();
+            SetFields(view,
+                ("router", router),
+                ("pepperMaterial", KitchenMaterials.GreenPepper),
+                ("broccoliMaterial", KitchenMaterials.Broccoli),
+                ("stemMaterial", KitchenMaterials.VegetableStem));
         }
 
         /// <summary>にんじん（仮。野菜はチームで作ったモデルに入れかえる予定）</summary>
