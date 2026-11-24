@@ -84,6 +84,7 @@
 - Test Runner で PlayMode のテストを流すと、Project Settings の Enter Play Mode Options が変わることがある。流したあとに戻す（オフ）。`Run In Background` はオンのまま
 - 写真の素材のざらつきの画像は、`unity/tools/rough_to_mask.py` で Unity の mask にする。炎・湯気・網目などの自作の画像は `unity/tools/make_textures.py`
 - 素材を足したら、`unity/Assets/CREDITS.md` に出どころを書く（CC0 か自作だけ）
+- 外から持ってきた 3D モデル（GLB）は `unity/Assets/Art/Models/` に置く。glTFast（`com.unity.cloud.gltfast` 6.21.0）が読み込む。置き方と決まりは `unity/Assets/Art/Models/README.md`
 - 学校のネットワークでは Git が SSL のエラーで GitHub につながらない → `git config --global http.sslBackend schannel`。uv / uvx は `UV_NATIVE_TLS=true`
 
 ---
