@@ -14,8 +14,9 @@ device/.pio/
 device/backup/
 device/host_test/build/
 
-# Rust サーバーのビルド成果物
-server/target/
+# サーバーのビルド成果物（go build）とログ
+server/omamagoto-server
+server/omamagoto-server.exe
 server/logs/
 
 # 料理の写真の元データ（大きいので入れない。使うのは dishes.js と *.jpg）
