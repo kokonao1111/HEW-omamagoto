@@ -35,6 +35,8 @@ const (
 	scanRefresh = 10 * time.Second
 	// 止めるときに、切断が終わるのを待つ長さ（macOS の切断は待たずに戻るため）
 	disconnectWait = 2 * time.Second
+	// 名前（omamagoto-5C3C）はスキャン応答に入っていて、最初の広告より少し遅れて届く。名前が来るまで待つ長さ
+	nameWait = 1 * time.Second
 )
 
 type BleKind int
@@ -89,7 +91,29 @@ func RunBLE(ctx context.Context, out chan<- BleMessage) error {
 
 	var wg sync.WaitGroup
 	running := map[string]bool{}
+	// 名前がまだ届いていないデバイス → 見つけた時刻
+	waiting := map[string]time.Time{}
 	ended := make(chan string, 16)
+	start := func(addr bluetooth.Address, name string) {
+		key := addr.String()
+		delete(waiting, key)
+		if name == "" {
+			name = key
+		}
+		running[key] = true
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			watchDevice(ctx, adapter, addr, name, out)
+			select {
+			case ended <- key:
+			case <-ctx.Done():
+			}
+		}()
+	}
+	waitTick := time.NewTicker(100 * time.Millisecond)
+	defer waitTick.Stop()
+	addrs := map[string]bluetooth.Address{}
 	var result error
 loop:
 	for {
@@ -99,20 +123,21 @@ loop:
 			if running[key] {
 				continue
 			}
-			name := f.name
-			if name == "" {
-				name = key
+			if f.name != "" {
+				start(f.addr, f.name)
+				continue
 			}
-			running[key] = true
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				watchDevice(ctx, adapter, f.addr, name, out)
-				select {
-				case ended <- key:
-				case <-ctx.Done():
+			if _, ok := waiting[key]; !ok {
+				waiting[key] = time.Now()
+				addrs[key] = f.addr
+			}
+		case <-waitTick.C:
+			// 待っても名前が来なかったデバイスは、アドレスを名前にしてつなぐ
+			for key, t := range waiting {
+				if time.Since(t) >= nameWait {
+					start(addrs[key], "")
 				}
-			}()
+			}
 		case key := <-ended:
 			delete(running, key)
 			// macOS は探し直さないと、同じデバイスをもう一度知らせない
