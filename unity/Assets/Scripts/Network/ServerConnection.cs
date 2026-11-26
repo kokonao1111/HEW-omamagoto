@@ -19,7 +19,7 @@ namespace Omamagoto.Network
     }
 
     /// <summary>
-    /// Rust のサーバー（server/）に WebSocket でつなぎ、届いたイベントを EventRouter に渡す。
+    /// サーバー（server/、Go）に WebSocket でつなぎ、届いたイベントを EventRouter に渡す。
     ///
     /// - つながったら {"device":"screen","event":"hello"} を 1 回送る（サーバーが今の火を送り返す）
     /// - 切れたら、1 秒・1.6 秒・2.6 秒…と少しずつ間をあけて、自動でつなぎ直す（最大 10 秒）
