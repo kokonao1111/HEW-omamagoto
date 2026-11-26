@@ -28,6 +28,29 @@ Art/Models/
 | テクスチャ | 1 枚 2048 px まで（できれば 1024 px） |
 | 軽さ（目安） | 食材・道具は 1 つ数万三角形まで。展示用 PC で 60 fps を保つため。重いモデルは減らしてから入れる |
 
+## 今入っているモデル
+
+### Food/（野菜 8 種類。チームの自作）
+
+野菜ごとにフォルダーを分け、丸ごと版（`whole_…`）と、縦に二つに切った版（`…_halves`）を 1 本ずつ置いた。二分割版は、左右の半分が別の部品（`LeftHalf`・`RightHalf`）になっている。
+
+| フォルダー | 野菜 | 丸ごと版 | 二分割版 |
+| --- | --- | --- | --- |
+| `green_pepper/` | ピーマン | `whole_green_pepper.glb` | `pepper_halves.glb` |
+| `carrot/` | にんじん | `whole_carrot_aligned.glb`（二分割版と向きをそろえた版） | `carrot_halves.glb` |
+| `broccoli/` | ブロッコリー | `whole_broccoli.glb` | `broccoli_halves.glb` |
+| `chili/` | とうがらし | `whole_chili.glb` | `chili_halves.glb` |
+| `eggplant/` | なす | `whole_eggplant.glb` | `eggplant_halves.glb` |
+| `napa_cabbage/` | はくさい | `whole_napa_cabbage.glb` | `napa_cabbage_halves.glb` |
+| `onion/` | たまねぎ | `whole_onion.glb` | `onion_halves.glb` |
+| `corn/` | とうもろこし | `whole_corn.glb` | `corn_halves.glb` |
+
+- **とても重い**。1 本 11 万〜170 万三角形、ファイルは 5〜86 MB（16 本で 554 MB）。上の「軽さ（目安）」を大きくこえている。展示でたくさん並べるときは、軽くした版を作ってから使う（作るかはチームで決める）
+- テクスチャは 1 枚 2048 px まで（決まりの中）
+- Unity で読み込むと、16 本とも立った向き（長さが +Y）で、現実の大きさになる（高さ 4.7〜24 cm）。丸ごとのブロッコリーと丸ごとのにんじんは、ルートの Transform に縮小・回転がかかっている（メッシュだけを見ると大きさ・向きがちがって見えるが、それで正しい）
+- とうもろこしは、原点が底より 9 mm 上にある（少し沈んで見える）
+- 透明（たまねぎ）・クリアコート（なす・とうがらし・ピーマン・とうもろこし）の材質は、URP では元のとおりには出ないことがある（まだ見た目は確かめていない）
+
 ## 足すときの手順
 
 1. ライセンスを確かめる。使ってよいのは **CC0 か、チームの自作**だけ
