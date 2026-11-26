@@ -14,7 +14,7 @@
 
   本番では、サーバー（server/）が画面にイベントを配る。この道具は試し用に、
   サーバーの代わりに ws://localhost:9000/screen を開いて、Unity に直接送る。
-  なので、Rust のサーバーを動かしているときは使えない（同じ 9000 番を使うため）。
+  なので、本物のサーバー（server/）を動かしているときは使えない（同じ 9000 番を使うため）。
 
 使い方（Windows）:
   .venv\\Scripts\\python camera\\door_watch.py --camera 2
